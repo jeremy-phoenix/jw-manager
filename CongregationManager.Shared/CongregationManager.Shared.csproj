@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>$(NetVersion)</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Remove="Migrations\20260112152317_RefactorEntityModels.cs" />
+    <Compile Remove="Migrations\20260112152317_RefactorEntityModels.Designer.cs" />
+    <Compile Remove="Migrations\20260112173139_AddFieldServiceGroup.cs" />
+    <Compile Remove="Migrations\20260112173139_AddFieldServiceGroup.Designer.cs" />
+    <Compile Remove="Migrations\20260115133451_AddGroupOverseerAndAssistantToFieldServiceGroup.cs" />
+    <Compile Remove="Migrations\20260115133451_AddGroupOverseerAndAssistantToFieldServiceGroup.Designer.cs" />
+    <Compile Remove="Migrations\20260115154426_RemoveFieldServiceGroupCoordinates.cs" />
+    <Compile Remove="Migrations\20260115154426_RemoveFieldServiceGroupCoordinates.Designer.cs" />
+    <Compile Remove="Migrations\20260118143929_ReplaceFieldServiceStatusWithAuxiliaryPioneerPeriod.cs" />
+    <Compile Remove="Migrations\20260118143929_ReplaceFieldServiceStatusWithAuxiliaryPioneerPeriod.Designer.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.5" />
+    <PackageReference Include="Serilog" Version="4.3.1" />
+  </ItemGroup>
+</Project>

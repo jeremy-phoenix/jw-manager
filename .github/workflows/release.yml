@@ -1,0 +1,389 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - '[0-9]*.[0-9]*.[0-9]*'
+      - 'v[0-9]*.[0-9]*.[0-9]*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_VERSION: 10.0.x
+  DOTNET_SOLUTION: CongregationManager.slnx
+  API_PROJECT: CongregationManager.Web/CongregationManager.Web.csproj
+
+jobs:
+  flutter-verify:
+    name: Flutter analyze and test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: congregation_manager
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Restore Flutter packages
+        run: flutter pub get
+
+      - name: Analyze Flutter code
+        run: flutter analyze
+
+      - name: Run Flutter tests
+        run: flutter test
+
+  flutter-build:
+    name: Build Flutter ${{ matrix.name }}
+    runs-on: ${{ matrix.runner }}
+    needs: flutter-verify
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Android armeabi-v7a
+            platform: android
+            runner: ubuntu-latest
+            target_platform: android-arm
+            asset_name: congregation-manager-android-armeabi-v7a.apk
+            artifact_name: congregation-manager-android-armeabi-v7a
+          - name: Android arm64-v8a
+            platform: android
+            runner: ubuntu-latest
+            target_platform: android-arm64
+            asset_name: congregation-manager-android-arm64-v8a.apk
+            artifact_name: congregation-manager-android-arm64-v8a
+          - name: Android x86_64
+            platform: android
+            runner: ubuntu-latest
+            target_platform: android-x64
+            asset_name: congregation-manager-android-x86_64.apk
+            artifact_name: congregation-manager-android-x86_64
+          - name: Linux x64
+            platform: linux
+            runner: ubuntu-latest
+            asset_name: congregation-manager-linux-x64.tar.gz
+            artifact_name: congregation-manager-linux-x64
+          - name: Windows x64
+            platform: windows
+            runner: windows-latest
+            asset_name: congregation-manager-windows-x64.zip
+            artifact_name: congregation-manager-windows-x64
+          - name: iOS arm64 unsigned
+            platform: ios
+            runner: macos-13
+            asset_name: congregation-manager-ios-arm64-nosign.zip
+            artifact_name: congregation-manager-ios-arm64-nosign
+          - name: macOS x64
+            platform: macos
+            runner: macos-13
+            asset_name: congregation-manager-macos-x64.zip
+            artifact_name: congregation-manager-macos-x64
+    defaults:
+      run:
+        working-directory: congregation_manager
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        if: matrix.platform == 'android'
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Install Linux build dependencies
+        if: matrix.platform == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libsqlite3-dev
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Restore Flutter packages
+        run: flutter pub get
+
+      - name: Configure Android release signing
+        if: matrix.platform == 'android'
+        shell: bash
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+
+          for name in ANDROID_KEYSTORE_BASE64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD; do
+            if [ -z "${!name:-}" ]; then
+              echo "::error::Missing required GitHub secret: ${name}"
+              exit 1
+            fi
+          done
+
+          mkdir -p android/app
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/app/upload-keystore.p12
+
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+
+          def escape_property(value):
+              return (
+                  value.replace('\\', '\\\\')
+                  .replace('\r', '\\r')
+                  .replace('\n', '\\n')
+                  .replace(':', '\\:')
+                  .replace('=', '\\=')
+              )
+
+          properties = {
+              'storePassword': os.environ['ANDROID_KEYSTORE_PASSWORD'],
+              'keyPassword': os.environ['ANDROID_KEY_PASSWORD'],
+              'keyAlias': os.environ['ANDROID_KEY_ALIAS'],
+                'storeFile': 'app/upload-keystore.p12',
+                'storeType': 'PKCS12',
+          }
+
+          output = Path('android/key.properties')
+          output.write_text(
+              ''.join(f'{key}={escape_property(value)}\n' for key, value in properties.items()),
+              encoding='utf-8',
+          )
+          PY
+
+      - name: Generate Linux platform files when missing
+        if: matrix.platform == 'linux'
+        run: |
+          if [ ! -d linux ]; then
+            flutter create --platforms=linux .
+          fi
+
+      - name: Generate macOS platform files when missing
+        if: matrix.platform == 'macos'
+        run: |
+          if [ ! -d macos ]; then
+            flutter create --platforms=macos .
+          fi
+
+      - name: Build Android APK
+        if: matrix.platform == 'android'
+        run: flutter build apk --release --target-platform ${{ matrix.target_platform }}
+
+      - name: Stage Android APK
+        if: matrix.platform == 'android'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/release"
+          cp build/app/outputs/flutter-apk/app-release.apk "$RUNNER_TEMP/release/${{ matrix.asset_name }}"
+
+      - name: Build Linux app
+        if: matrix.platform == 'linux'
+        run: flutter build linux --release
+
+      - name: Stage Linux x64 artifact
+        if: matrix.platform == 'linux'
+        run: |
+          mkdir -p "$RUNNER_TEMP/release"
+          tar -czf "$RUNNER_TEMP/release/${{ matrix.asset_name }}" -C build/linux/x64/release bundle
+
+      - name: Build Windows app
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: flutter build windows --release
+
+      - name: Stage Windows x64 artifact
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path "$env:RUNNER_TEMP\release" | Out-Null
+          Compress-Archive -Path "build\windows\x64\runner\Release\*" -DestinationPath "$env:RUNNER_TEMP\release\${{ matrix.asset_name }}" -Force
+
+      - name: Build iOS app without code signing
+        if: matrix.platform == 'ios'
+        run: flutter build ios --release --no-codesign
+
+      - name: Stage iOS arm64 artifact
+        if: matrix.platform == 'ios'
+        run: |
+          mkdir -p "$RUNNER_TEMP/release"
+          cd build/ios/iphoneos
+          zip -qry "$RUNNER_TEMP/release/${{ matrix.asset_name }}" Runner.app
+
+      - name: Build macOS app
+        if: matrix.platform == 'macos'
+        run: flutter build macos --release
+
+      - name: Stage macOS x64 artifact
+        if: matrix.platform == 'macos'
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/release"
+          app_path="$(find build/macos/Build/Products/Release -maxdepth 1 -name '*.app' -type d | head -n 1)"
+          if [ -z "$app_path" ]; then
+            echo "No macOS .app bundle was produced."
+            exit 1
+          fi
+          ditto -c -k --sequesterRsrc --keepParent "$app_path" "$RUNNER_TEMP/release/${{ matrix.asset_name }}"
+
+      - name: Upload Flutter artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: ${{ runner.temp }}/release/${{ matrix.asset_name }}
+          if-no-files-found: error
+
+  dotnet-api:
+    name: Publish .NET API ${{ matrix.runtime }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runtime: linux-x64
+            asset_name: congregation-manager-dotnet-api-linux-x64.tar.gz
+            artifact_name: congregation-manager-dotnet-api-linux-x64
+            archive: tar
+          - runtime: linux-arm64
+            asset_name: congregation-manager-dotnet-api-linux-arm64.tar.gz
+            artifact_name: congregation-manager-dotnet-api-linux-arm64
+            archive: tar
+          - runtime: win-x64
+            asset_name: congregation-manager-dotnet-api-win-x64.zip
+            artifact_name: congregation-manager-dotnet-api-win-x64
+            archive: zip
+          - runtime: win-arm64
+            asset_name: congregation-manager-dotnet-api-win-arm64.zip
+            artifact_name: congregation-manager-dotnet-api-win-arm64
+            archive: zip
+          - runtime: osx-x64
+            asset_name: congregation-manager-dotnet-api-osx-x64.tar.gz
+            artifact_name: congregation-manager-dotnet-api-osx-x64
+            archive: tar
+          - runtime: osx-arm64
+            asset_name: congregation-manager-dotnet-api-osx-arm64.tar.gz
+            artifact_name: congregation-manager-dotnet-api-osx-arm64
+            archive: tar
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Publish .NET API
+        run: dotnet publish ${{ env.API_PROJECT }} --configuration Release --runtime ${{ matrix.runtime }} --self-contained false --output "$RUNNER_TEMP/api-publish"
+
+      - name: Stage .NET API tar artifact
+        if: matrix.archive == 'tar'
+        run: |
+          mkdir -p "$RUNNER_TEMP/release"
+          tar -czf "$RUNNER_TEMP/release/${{ matrix.asset_name }}" -C "$RUNNER_TEMP/api-publish" .
+
+      - name: Stage .NET API zip artifact
+        if: matrix.archive == 'zip'
+        run: |
+          mkdir -p "$RUNNER_TEMP/release"
+          cd "$RUNNER_TEMP/api-publish"
+          zip -qry "$RUNNER_TEMP/release/${{ matrix.asset_name }}" .
+
+      - name: Upload .NET API artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: ${{ runner.temp }}/release/${{ matrix.asset_name }}
+          if-no-files-found: error
+
+  release:
+    name: Create GitHub release
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    needs:
+      - flutter-build
+      - dotnet-api
+    permissions:
+      contents: write
+    steps:
+      - name: Check out repository history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
+
+      - name: Generate release notes
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          current_tag="$GITHUB_REF_NAME"
+          current_commit="${current_tag}^{commit}"
+          previous_tag="$(git describe --tags --abbrev=0 "${current_commit}^" 2>/dev/null || true)"
+
+          {
+            echo "# ${current_tag}"
+            echo
+
+            if [ -n "$previous_tag" ]; then
+              echo "Changes since \`${previous_tag}\`."
+              echo
+              echo "## Commits"
+              changes="$(git log --pretty=format:'- %s (%h)' "${previous_tag}..${current_commit}")"
+              if [ -n "$changes" ]; then
+                printf '%s\n' "$changes"
+              else
+                echo "- No commits found in this range."
+              fi
+              echo
+              echo "## Compare"
+              echo "https://github.com/${GITHUB_REPOSITORY}/compare/${previous_tag}...${current_tag}"
+            else
+              echo "Initial tagged release."
+              echo
+              echo "## Commits"
+              git log --pretty=format:'- %s (%h)' "$current_commit"
+            fi
+
+            echo
+            echo "## Artifacts"
+            find release-assets -maxdepth 1 -type f -printf '- `%f`\n' | sort
+          } > release-notes.md
+
+      - name: Create or update GitHub release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          tag="$GITHUB_REF_NAME"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" release-assets/* --clobber
+            gh release edit "$tag" --title "$tag" --notes-file release-notes.md
+          else
+            gh release create "$tag" release-assets/* --title "$tag" --notes-file release-notes.md
+          fi
