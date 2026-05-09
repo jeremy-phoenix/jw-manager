@@ -1,3 +1,4 @@
+import java.io.File
 import java.io.FileInputStream
 import java.util.Properties
 
@@ -16,6 +17,7 @@ if (keystorePropertiesFile.exists()) {
 
 val hasReleaseSigning = listOf("storeFile", "storePassword", "keyAlias", "keyPassword")
     .all { keystoreProperties.containsKey(it) }
+val defaultDebugKeystore = File(System.getProperty("user.home"), ".android/debug.keystore")
 
 android {
     namespace = "com.congregationmanager.congregation_manager"
@@ -43,6 +45,10 @@ android {
     }
 
     signingConfigs {
+        getByName("debug") {
+            storeFile = defaultDebugKeystore
+        }
+
         if (hasReleaseSigning) {
             create("release") {
                 keyAlias = keystoreProperties["keyAlias"] as String

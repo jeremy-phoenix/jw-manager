@@ -14,6 +14,48 @@ class HomeScreen extends ConsumerWidget {
     final groups = ref.watch(fieldServiceGroupsProvider);
     final currentCong = ref.watch(currentCongregationProvider);
     final theme = Theme.of(context);
+    final stats = [
+      _DashboardStat(
+        icon: Icons.people,
+        label: 'Total Publishers',
+        value: persons.when(
+          data: (list) => list.length.toString(),
+          loading: () => '...',
+          error: (e, s) => '–',
+        ),
+        color: Colors.blue,
+      ),
+      _DashboardStat(
+        icon: Icons.check_circle,
+        label: 'Active',
+        value: persons.when(
+          data: (list) => list.where((p) => p.isActive).length.toString(),
+          loading: () => '...',
+          error: (e, s) => '–',
+        ),
+        color: Colors.green,
+      ),
+      _DashboardStat(
+        icon: Icons.cancel,
+        label: 'Inactive',
+        value: persons.when(
+          data: (list) => list.where((p) => !p.isActive).length.toString(),
+          loading: () => '...',
+          error: (e, s) => '–',
+        ),
+        color: Colors.orange,
+      ),
+      _DashboardStat(
+        icon: Icons.groups,
+        label: 'Field Service Groups',
+        value: groups.when(
+          data: (list) => list.length.toString(),
+          loading: () => '...',
+          error: (e, s) => '–',
+        ),
+        color: Colors.purple,
+      ),
+    ];
 
     return Scaffold(
       appBar: AppBar(
@@ -26,109 +68,124 @@ class HomeScreen extends ConsumerWidget {
         ),
         actions: [_CongregationSwitcher()],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Dashboard', style: theme.textTheme.headlineMedium),
-            const SizedBox(height: 24),
-            Wrap(
-              spacing: 16,
-              runSpacing: 16,
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final isCompact = constraints.maxWidth < 600;
+
+          return SingleChildScrollView(
+            padding: EdgeInsets.all(isCompact ? 16 : 24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _StatCard(
-                  icon: Icons.people,
-                  label: 'Total Publishers',
-                  value: persons.when(
-                    data: (list) => list.length.toString(),
-                    loading: () => '...',
-                    error: (e, s) => '–',
-                  ),
-                  color: Colors.blue,
-                ),
-                _StatCard(
-                  icon: Icons.check_circle,
-                  label: 'Active',
-                  value: persons.when(
-                    data: (list) =>
-                        list.where((p) => p.isActive).length.toString(),
-                    loading: () => '...',
-                    error: (e, s) => '–',
-                  ),
-                  color: Colors.green,
-                ),
-                _StatCard(
-                  icon: Icons.cancel,
-                  label: 'Inactive',
-                  value: persons.when(
-                    data: (list) =>
-                        list.where((p) => !p.isActive).length.toString(),
-                    loading: () => '...',
-                    error: (e, s) => '–',
-                  ),
-                  color: Colors.orange,
-                ),
-                _StatCard(
-                  icon: Icons.groups,
-                  label: 'Field Service Groups',
-                  value: groups.when(
-                    data: (list) => list.length.toString(),
-                    loading: () => '...',
-                    error: (e, s) => '–',
-                  ),
-                  color: Colors.purple,
-                ),
+                Text('Dashboard', style: theme.textTheme.headlineMedium),
+                const SizedBox(height: 16),
+                _DashboardGrid(stats: stats),
               ],
             ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
 }
 
-class _StatCard extends StatelessWidget {
+class _DashboardStat {
   final IconData icon;
   final String label;
   final String value;
   final Color color;
 
-  const _StatCard({
+  const _DashboardStat({
     required this.icon,
     required this.label,
     required this.value,
     required this.color,
   });
+}
+
+class _DashboardGrid extends StatelessWidget {
+  final List<_DashboardStat> stats;
+
+  const _DashboardGrid({required this.stats});
 
   @override
   Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        final columns = width < 340
+            ? 1
+            : width < 720
+            ? 2
+            : 4;
+
+        return GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: stats.length,
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: columns,
+            mainAxisExtent: 116,
+            mainAxisSpacing: 12,
+            crossAxisSpacing: 12,
+          ),
+          itemBuilder: (context, index) => _StatCard(stat: stats[index]),
+        );
+      },
+    );
+  }
+}
+
+class _StatCard extends StatelessWidget {
+  final _DashboardStat stat;
+
+  const _StatCard({required this.stat});
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+
     return Card(
-      child: SizedBox(
-        width: 200,
-        height: 120,
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Icon(icon, color: color, size: 28),
-                  const SizedBox(width: 8),
-                  Text(
-                    value,
-                    style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-                      color: color,
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: stat.color.withAlpha(28),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(8),
+                    child: Icon(stat.icon, color: stat.color, size: 22),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    stat.value,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: textTheme.headlineSmall?.copyWith(
+                      color: stat.color,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                ],
-              ),
-              const Spacer(),
-              Text(label, style: Theme.of(context).textTheme.bodyMedium),
-            ],
-          ),
+                ),
+              ],
+            ),
+            const Spacer(),
+            Text(
+              stat.label,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: textTheme.bodyMedium,
+            ),
+          ],
         ),
       ),
     );

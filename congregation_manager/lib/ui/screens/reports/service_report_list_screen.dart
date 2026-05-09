@@ -101,104 +101,14 @@ class ServiceReportListScreen extends ConsumerWidget {
       ),
       body: Column(
         children: [
-          // Filters
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: Wrap(
-              spacing: 12,
-              runSpacing: 8,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                // Year selector
-                SizedBox(
-                  width: 120,
-                  child: serviceYears.when(
-                    data: (years) => DropdownButtonFormField<int>(
-                      initialValue: selectedYear,
-                      decoration: const InputDecoration(
-                        labelText: 'Year',
-                        border: OutlineInputBorder(),
-                        isDense: true,
-                      ),
-                      items: years
-                          .map(
-                            (y) =>
-                                DropdownMenuItem(value: y, child: Text('$y')),
-                          )
-                          .toList(),
-                      onChanged: (v) {
-                        if (v != null) {
-                          ref.read(selectedYearProvider.notifier).set(v);
-                        }
-                      },
-                    ),
-                    loading: () => const SizedBox(),
-                    error: (e, s) => const Text('–'),
-                  ),
-                ),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    IconButton.filledTonal(
-                      icon: const Icon(Icons.chevron_left),
-                      tooltip: 'Previous Month',
-                      onPressed: () => _changeMonth(ref, -1),
-                    ),
-                    const SizedBox(width: 8),
-                    SizedBox(
-                      width: 160,
-                      child: DropdownButtonFormField<int>(
-                        initialValue: selectedMonth,
-                        decoration: const InputDecoration(
-                          labelText: 'Month',
-                          border: OutlineInputBorder(),
-                          isDense: true,
-                        ),
-                        items: ServiceMonth.values
-                            .map(
-                              (m) => DropdownMenuItem(
-                                value: m.monthNumber,
-                                child: Text(m.displayName),
-                              ),
-                            )
-                            .toList(),
-                        onChanged: (v) {
-                          if (v != null) {
-                            ref.read(selectedMonthProvider.notifier).set(v);
-                          }
-                        },
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    IconButton.filledTonal(
-                      icon: const Icon(Icons.chevron_right),
-                      tooltip: 'Next Month',
-                      onPressed: () => _changeMonth(ref, 1),
-                    ),
-                  ],
-                ),
-                SizedBox(
-                  width: 320,
-                  child: _ServiceReportSearchField(
-                    query: searchQuery,
-                    onChanged: (value) => ref
-                        .read(serviceReportSearchQueryProvider.notifier)
-                        .set(value),
-                    onClear: () => ref
-                        .read(serviceReportSearchQueryProvider.notifier)
-                        .set(''),
-                  ),
-                ),
-                FilterChip(
-                  label: const Text('Not Shared Only'),
-                  selected: showNotSharedOnly,
-                  onSelected: (v) =>
-                      ref.read(showNotSharedOnlyProvider.notifier).set(v),
-                ),
-              ],
-            ),
+          _buildFilters(
+            ref: ref,
+            selectedYear: selectedYear,
+            selectedMonth: selectedMonth,
+            showNotSharedOnly: showNotSharedOnly,
+            searchQuery: searchQuery,
+            serviceYears: serviceYears,
           ),
-          // Reports table
           Expanded(
             child: reportsAsync.when(
               data: (reports) {
@@ -218,6 +128,233 @@ class ServiceReportListScreen extends ConsumerWidget {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildFilters({
+    required WidgetRef ref,
+    required int selectedYear,
+    required int selectedMonth,
+    required bool showNotSharedOnly,
+    required String searchQuery,
+    required AsyncValue<List<int>> serviceYears,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.all(12),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isCompact = constraints.maxWidth < 560;
+
+          if (isCompact) {
+            return _buildCompactFilters(
+              ref: ref,
+              selectedYear: selectedYear,
+              selectedMonth: selectedMonth,
+              showNotSharedOnly: showNotSharedOnly,
+              searchQuery: searchQuery,
+              serviceYears: serviceYears,
+            );
+          }
+
+          return _buildWideFilters(
+            ref: ref,
+            selectedYear: selectedYear,
+            selectedMonth: selectedMonth,
+            showNotSharedOnly: showNotSharedOnly,
+            searchQuery: searchQuery,
+            serviceYears: serviceYears,
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildCompactFilters({
+    required WidgetRef ref,
+    required int selectedYear,
+    required int selectedMonth,
+    required bool showNotSharedOnly,
+    required String searchQuery,
+    required AsyncValue<List<int>> serviceYears,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            _MonthNavButton(
+              icon: Icons.chevron_left,
+              tooltip: 'Previous Month',
+              onPressed: () => _changeMonth(ref, -1),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _buildYearSelector(ref, selectedYear, serviceYears),
+            ),
+            const SizedBox(width: 8),
+            Expanded(flex: 2, child: _buildMonthSelector(ref, selectedMonth)),
+            const SizedBox(width: 8),
+            _MonthNavButton(
+              icon: Icons.chevron_right,
+              tooltip: 'Next Month',
+              onPressed: () => _changeMonth(ref, 1),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(child: _buildSearchField(ref, searchQuery)),
+            const SizedBox(width: 8),
+            _buildNotSharedFilter(ref, showNotSharedOnly, iconOnly: true),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildWideFilters({
+    required WidgetRef ref,
+    required int selectedYear,
+    required int selectedMonth,
+    required bool showNotSharedOnly,
+    required String searchQuery,
+    required AsyncValue<List<int>> serviceYears,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              flex: 2,
+              child: _buildYearSelector(ref, selectedYear, serviceYears),
+            ),
+            const SizedBox(width: 8),
+            _MonthNavButton(
+              icon: Icons.chevron_left,
+              tooltip: 'Previous Month',
+              onPressed: () => _changeMonth(ref, -1),
+            ),
+            const SizedBox(width: 8),
+            Expanded(flex: 3, child: _buildMonthSelector(ref, selectedMonth)),
+            const SizedBox(width: 8),
+            _MonthNavButton(
+              icon: Icons.chevron_right,
+              tooltip: 'Next Month',
+              onPressed: () => _changeMonth(ref, 1),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(child: _buildSearchField(ref, searchQuery)),
+            const SizedBox(width: 8),
+            _buildNotSharedFilter(ref, showNotSharedOnly),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildYearSelector(
+    WidgetRef ref,
+    int selectedYear,
+    AsyncValue<List<int>> serviceYears,
+  ) {
+    return serviceYears.when(
+      data: (years) => DropdownButtonFormField<int>(
+        initialValue: selectedYear,
+        isExpanded: true,
+        decoration: _filterDecoration('Year'),
+        items: years
+            .map(
+              (year) => DropdownMenuItem(
+                value: year,
+                child: Text('$year', overflow: TextOverflow.ellipsis),
+              ),
+            )
+            .toList(),
+        onChanged: (value) {
+          if (value != null) {
+            ref.read(selectedYearProvider.notifier).set(value);
+          }
+        },
+      ),
+      loading: () => _DisabledFilterField(label: 'Year'),
+      error: (e, s) => _DisabledFilterField(label: 'Year', value: '–'),
+    );
+  }
+
+  Widget _buildMonthSelector(WidgetRef ref, int selectedMonth) {
+    return DropdownButtonFormField<int>(
+      initialValue: selectedMonth,
+      isExpanded: true,
+      decoration: _filterDecoration('Month'),
+      items: ServiceMonth.values
+          .map(
+            (month) => DropdownMenuItem(
+              value: month.monthNumber,
+              child: Text(month.displayName, overflow: TextOverflow.ellipsis),
+            ),
+          )
+          .toList(),
+      onChanged: (value) {
+        if (value != null) {
+          ref.read(selectedMonthProvider.notifier).set(value);
+        }
+      },
+    );
+  }
+
+  Widget _buildSearchField(WidgetRef ref, String searchQuery) {
+    return _ServiceReportSearchField(
+      query: searchQuery,
+      onChanged: (value) =>
+          ref.read(serviceReportSearchQueryProvider.notifier).set(value),
+      onClear: () =>
+          ref.read(serviceReportSearchQueryProvider.notifier).set(''),
+    );
+  }
+
+  Widget _buildNotSharedFilter(
+    WidgetRef ref,
+    bool showNotSharedOnly, {
+    bool iconOnly = false,
+  }) {
+    if (iconOnly) {
+      return IconButton.filledTonal(
+        isSelected: showNotSharedOnly,
+        icon: const Icon(Icons.filter_alt_outlined),
+        selectedIcon: const Icon(Icons.filter_alt),
+        tooltip: 'Show not shared only',
+        style: IconButton.styleFrom(
+          fixedSize: const Size.square(48),
+          minimumSize: const Size.square(48),
+        ),
+        onPressed: () => ref
+            .read(showNotSharedOnlyProvider.notifier)
+            .set(!showNotSharedOnly),
+      );
+    }
+
+    return FilterChip(
+      avatar: const Icon(Icons.filter_alt, size: 18),
+      label: const Text('Not Shared'),
+      tooltip: 'Show not shared only',
+      selected: showNotSharedOnly,
+      onSelected: (value) =>
+          ref.read(showNotSharedOnlyProvider.notifier).set(value),
+    );
+  }
+
+  InputDecoration _filterDecoration(String label) {
+    return InputDecoration(
+      labelText: label,
+      border: const OutlineInputBorder(),
+      isDense: true,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
     );
   }
 
@@ -246,6 +383,56 @@ class ServiceReportListScreen extends ConsumerWidget {
 
     ref.read(selectedYearProvider.notifier).set(nextYear);
     ref.read(selectedMonthProvider.notifier).set(nextMonth);
+  }
+}
+
+class _MonthNavButton extends StatelessWidget {
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onPressed;
+
+  const _MonthNavButton({
+    required this.icon,
+    required this.tooltip,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton.filledTonal(
+      icon: Icon(icon),
+      tooltip: tooltip,
+      style: IconButton.styleFrom(
+        fixedSize: const Size.square(40),
+        minimumSize: const Size.square(40),
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      ),
+      onPressed: onPressed,
+    );
+  }
+}
+
+class _DisabledFilterField extends StatelessWidget {
+  final String label;
+  final String value;
+
+  const _DisabledFilterField({required this.label, this.value = ''});
+
+  @override
+  Widget build(BuildContext context) {
+    return InputDecorator(
+      decoration: InputDecoration(
+        labelText: label,
+        border: const OutlineInputBorder(),
+        isDense: true,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 12,
+          vertical: 10,
+        ),
+        enabled: false,
+      ),
+      child: Text(value, maxLines: 1, overflow: TextOverflow.ellipsis),
+    );
   }
 }
 
