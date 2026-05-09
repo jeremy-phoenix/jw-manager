@@ -81,16 +81,16 @@ jobs:
             runner: windows-latest
             asset_name: congregation-manager-windows-x64.zip
             artifact_name: congregation-manager-windows-x64
-          - name: iOS arm64 unsigned
-            platform: ios
-            runner: macos-13
-            asset_name: congregation-manager-ios-arm64-nosign.zip
-            artifact_name: congregation-manager-ios-arm64-nosign
-          - name: macOS x64
-            platform: macos
-            runner: macos-13
-            asset_name: congregation-manager-macos-x64.zip
-            artifact_name: congregation-manager-macos-x64
+          # - name: iOS arm64 unsigned
+          #   platform: ios
+          #   runner: macos-13
+          #   asset_name: congregation-manager-ios-arm64-nosign.zip
+          #   artifact_name: congregation-manager-ios-arm64-nosign
+          # - name: macOS x64
+          #   platform: macos
+          #   runner: macos-13
+          #   asset_name: congregation-manager-macos-x64.zip
+          #   artifact_name: congregation-manager-macos-x64
     defaults:
       run:
         working-directory: congregation_manager
@@ -176,12 +176,12 @@ jobs:
             flutter create --platforms=linux .
           fi
 
-      - name: Generate macOS platform files when missing
-        if: matrix.platform == 'macos'
-        run: |
-          if [ ! -d macos ]; then
-            flutter create --platforms=macos .
-          fi
+      # - name: Generate macOS platform files when missing
+      #   if: matrix.platform == 'macos'
+      #   run: |
+      #     if [ ! -d macos ]; then
+      #       flutter create --platforms=macos .
+      #     fi
 
       - name: Build Android APK
         if: matrix.platform == 'android'
@@ -217,32 +217,32 @@ jobs:
           New-Item -ItemType Directory -Force -Path "$env:RUNNER_TEMP\release" | Out-Null
           Compress-Archive -Path "build\windows\x64\runner\Release\*" -DestinationPath "$env:RUNNER_TEMP\release\${{ matrix.asset_name }}" -Force
 
-      - name: Build iOS app without code signing
-        if: matrix.platform == 'ios'
-        run: flutter build ios --release --no-codesign
+      # - name: Build iOS app without code signing
+      #   if: matrix.platform == 'ios'
+      #   run: flutter build ios --release --no-codesign
 
-      - name: Stage iOS arm64 artifact
-        if: matrix.platform == 'ios'
-        run: |
-          mkdir -p "$RUNNER_TEMP/release"
-          cd build/ios/iphoneos
-          zip -qry "$RUNNER_TEMP/release/${{ matrix.asset_name }}" Runner.app
+      # - name: Stage iOS arm64 artifact
+      #   if: matrix.platform == 'ios'
+      #   run: |
+      #     mkdir -p "$RUNNER_TEMP/release"
+      #     cd build/ios/iphoneos
+      #     zip -qry "$RUNNER_TEMP/release/${{ matrix.asset_name }}" Runner.app
 
-      - name: Build macOS app
-        if: matrix.platform == 'macos'
-        run: flutter build macos --release
+      # - name: Build macOS app
+      #   if: matrix.platform == 'macos'
+      #   run: flutter build macos --release
 
-      - name: Stage macOS x64 artifact
-        if: matrix.platform == 'macos'
-        run: |
-          set -euo pipefail
-          mkdir -p "$RUNNER_TEMP/release"
-          app_path="$(find build/macos/Build/Products/Release -maxdepth 1 -name '*.app' -type d | head -n 1)"
-          if [ -z "$app_path" ]; then
-            echo "No macOS .app bundle was produced."
-            exit 1
-          fi
-          ditto -c -k --sequesterRsrc --keepParent "$app_path" "$RUNNER_TEMP/release/${{ matrix.asset_name }}"
+      # - name: Stage macOS x64 artifact
+      #   if: matrix.platform == 'macos'
+      #   run: |
+      #     set -euo pipefail
+      #     mkdir -p "$RUNNER_TEMP/release"
+      #     app_path="$(find build/macos/Build/Products/Release -maxdepth 1 -name '*.app' -type d | head -n 1)"
+      #     if [ -z "$app_path" ]; then
+      #       echo "No macOS .app bundle was produced."
+      #       exit 1
+      #     fi
+      #     ditto -c -k --sequesterRsrc --keepParent "$app_path" "$RUNNER_TEMP/release/${{ matrix.asset_name }}"
 
       - name: Upload Flutter artifact
         uses: actions/upload-artifact@v4
