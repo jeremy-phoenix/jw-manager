@@ -1,4 +1,6 @@
 import 'dart:io';
+import 'dart:typed_data';
+
 import 'package:excel/excel.dart';
 import 'package:congregation_manager/data/database.dart';
 
@@ -22,7 +24,7 @@ class PublisherContactListExcelReport {
     'Field Service Group',
   ];
 
-  Future<void> save(String filePath) async {
+  Uint8List buildBytes() {
     final excel = Excel.createExcel();
     final sheetName = 'Publisher Contact List';
     excel.rename(excel.getDefaultSheet()!, sheetName);
@@ -56,9 +58,14 @@ class PublisherContactListExcelReport {
     }
 
     final bytes = excel.encode();
-    if (bytes != null) {
-      await File(filePath).writeAsBytes(bytes);
+    if (bytes == null) {
+      throw StateError('Failed to generate Excel file.');
     }
+    return Uint8List.fromList(bytes);
+  }
+
+  Future<void> save(String filePath) async {
+    await File(filePath).writeAsBytes(buildBytes());
   }
 
   int _addSection(

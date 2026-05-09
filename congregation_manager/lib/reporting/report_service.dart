@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:printing/printing.dart';
@@ -425,7 +426,7 @@ class ReportService {
   }
 
   /// Export publisher contact list as an Excel (.xlsx) file.
-  Future<void> exportExcel(String filePath) async {
+  Future<Uint8List> buildPublisherContactListExcel() async {
     final persons = await db.getAllPersons(congregationId: congregationId);
     final phones = await _loadAllPhones();
     final groups = await _loadGroupsById();
@@ -436,7 +437,13 @@ class ReportService {
       groupsById: groups,
     );
 
-    await report.save(filePath);
+    return report.buildBytes();
+  }
+
+  /// Export publisher contact list as an Excel (.xlsx) file.
+  Future<void> exportExcel(String filePath) async {
+    final bytes = await buildPublisherContactListExcel();
+    await File(filePath).writeAsBytes(bytes);
   }
 
   /// Export S-21 publisher record PDFs for all active persons.

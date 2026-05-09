@@ -232,15 +232,15 @@ class PersonListScreen extends ConsumerWidget {
 
   Future<void> _exportExcel(BuildContext context, ReportService svc) async {
     try {
+      final bytes = await svc.buildPublisherContactListExcel();
       final filePath = await FilePicker.saveFile(
         dialogTitle: 'Export Excel',
         fileName: 'Publisher_Contact_List.xlsx',
         type: FileType.custom,
         allowedExtensions: ['xlsx'],
+        bytes: bytes,
       );
       if (filePath == null) return;
-
-      await svc.exportExcel(filePath);
 
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

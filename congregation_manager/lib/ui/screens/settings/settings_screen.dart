@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -255,6 +256,7 @@ class DataManagementSettingsScreen extends ConsumerWidget {
       final db = ref.read(databaseProvider);
       final data = await db.exportAllDataAsJson();
       final json = jsonEncode(data);
+      final bytes = Uint8List.fromList(utf8.encode(json));
 
       final timestamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
       final result = await FilePicker.saveFile(
@@ -262,10 +264,10 @@ class DataManagementSettingsScreen extends ConsumerWidget {
         fileName: 'congregation_manager_backup_$timestamp.json',
         type: FileType.custom,
         allowedExtensions: ['json'],
+        bytes: bytes,
       );
 
       if (result != null) {
-        await File(result).writeAsString(json);
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Data exported successfully.')),
