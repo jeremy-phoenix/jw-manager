@@ -9,6 +9,9 @@ import 'package:intl/intl.dart';
 import 'package:congregation_manager/data/database.dart';
 import 'package:congregation_manager/providers/database_provider.dart';
 import 'package:congregation_manager/providers/congregation_providers.dart';
+import 'package:congregation_manager/providers/group_providers.dart';
+import 'package:congregation_manager/providers/person_providers.dart';
+import 'package:congregation_manager/providers/service_report_providers.dart';
 import 'package:congregation_manager/providers/settings_providers.dart';
 import 'package:congregation_manager/providers/sync_providers.dart';
 import 'package:congregation_manager/ui/screens/import/csv_sync_preview_screen.dart';
@@ -39,7 +42,7 @@ class SettingsScreen extends ConsumerWidget {
                 _SettingsTile(
                   icon: Icons.storage_outlined,
                   title: 'Data Management',
-                  subtitle: 'Import, export, and database location',
+                  subtitle: 'Backup, restore, import, and database location',
                   route: '/settings/data',
                 ),
                 const Divider(height: 1),
@@ -199,24 +202,26 @@ class DataManagementSettingsScreen extends ConsumerWidget {
             child: Column(
               children: [
                 ListTile(
-                  leading: const Icon(Icons.file_download),
-                  title: const Text('Export Data'),
-                  subtitle: const Text('Export all data as a JSON backup file'),
+                  leading: const Icon(Icons.backup_outlined),
+                  title: const Text('Back Up Data'),
+                  subtitle: const Text('Save all data to a JSON backup file'),
                   trailing: FilledButton.tonalIcon(
-                    icon: const Icon(Icons.download),
-                    label: const Text('Export'),
-                    onPressed: () => _exportData(context, ref),
+                    icon: const Icon(Icons.backup_outlined),
+                    label: const Text('Back Up'),
+                    onPressed: () => _backupData(context, ref),
                   ),
                 ),
                 const Divider(height: 1),
                 ListTile(
-                  leading: const Icon(Icons.file_upload),
-                  title: const Text('Import Data'),
-                  subtitle: const Text('Restore data from a JSON backup'),
+                  leading: const Icon(Icons.restore_page_outlined),
+                  title: const Text('Restore Data'),
+                  subtitle: const Text(
+                    'Replace current data from a JSON backup',
+                  ),
                   trailing: FilledButton.tonalIcon(
-                    icon: const Icon(Icons.upload),
-                    label: const Text('Import'),
-                    onPressed: () => _importData(context, ref),
+                    icon: const Icon(Icons.restore),
+                    label: const Text('Restore'),
+                    onPressed: () => _restoreData(context, ref),
                   ),
                 ),
                 const Divider(height: 1),
@@ -251,16 +256,16 @@ class DataManagementSettingsScreen extends ConsumerWidget {
     );
   }
 
-  Future<void> _exportData(BuildContext context, WidgetRef ref) async {
+  Future<void> _backupData(BuildContext context, WidgetRef ref) async {
     try {
       final db = ref.read(databaseProvider);
       final data = await db.exportAllDataAsJson();
-      final json = jsonEncode(data);
+      final json = const JsonEncoder.withIndent('  ').convert(data);
       final bytes = Uint8List.fromList(utf8.encode(json));
 
       final timestamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
       final result = await FilePicker.saveFile(
-        dialogTitle: 'Export Backup',
+        dialogTitle: 'Back Up Data',
         fileName: 'congregation_manager_backup_$timestamp.json',
         type: FileType.custom,
         allowedExtensions: ['json'],
@@ -270,7 +275,7 @@ class DataManagementSettingsScreen extends ConsumerWidget {
       if (result != null) {
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Data exported successfully.')),
+            const SnackBar(content: Text('Backup saved successfully.')),
           );
         }
       }
@@ -278,18 +283,18 @@ class DataManagementSettingsScreen extends ConsumerWidget {
       if (context.mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('Export failed: $e')));
+        ).showSnackBar(SnackBar(content: Text('Backup failed: $e')));
       }
     }
   }
 
-  Future<void> _importData(BuildContext context, WidgetRef ref) async {
+  Future<void> _restoreData(BuildContext context, WidgetRef ref) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Import Data'),
+        title: const Text('Restore Data'),
         content: const Text(
-          'This will replace all current data with the imported backup. Continue?',
+          'This will replace all current data with the selected backup. Continue?',
         ),
         actions: [
           TextButton(
@@ -298,7 +303,7 @@ class DataManagementSettingsScreen extends ConsumerWidget {
           ),
           FilledButton(
             onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Import'),
+            child: const Text('Restore'),
           ),
         ],
       ),
@@ -310,28 +315,44 @@ class DataManagementSettingsScreen extends ConsumerWidget {
       final result = await FilePicker.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['json'],
+        withData: true,
       );
 
-      if (result != null && result.files.single.path != null) {
-        final file = File(result.files.single.path!);
-        final json = await file.readAsString();
-        final data = jsonDecode(json) as Map<String, dynamic>;
+      if (result != null) {
+        final selectedFile = result.files.single;
+        if (selectedFile.bytes == null && selectedFile.path == null) return;
+        final json = selectedFile.bytes != null
+            ? utf8.decode(selectedFile.bytes!)
+            : await File(selectedFile.path!).readAsString();
+        final decoded = jsonDecode(json);
+        if (decoded is! Map<String, dynamic>) {
+          throw const FormatException(
+            'Backup file must contain a JSON object.',
+          );
+        }
 
         final db = ref.read(databaseProvider);
-        await db.importFromJson(data);
+        await db.importFromJson(decoded);
 
-        // Set current congregation to the first imported congregation
         final allCongs = await db.getAllCongregations();
         if (allCongs.isNotEmpty) {
           await ref
               .read(currentCongregationIdProvider.notifier)
               .set(allCongs.first.id);
+        } else {
+          await ref.read(currentCongregationIdProvider.notifier).clear();
         }
+
         ref.invalidate(congregationsProvider);
+        ref.invalidate(currentCongregationProvider);
+        ref.invalidate(fieldServiceGroupsProvider);
+        ref.invalidate(personsProvider);
+        ref.invalidate(serviceReportsProvider);
+        ref.invalidate(serviceYearsProvider);
 
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Data imported successfully.')),
+            const SnackBar(content: Text('Data restored successfully.')),
           );
         }
       }
@@ -339,7 +360,7 @@ class DataManagementSettingsScreen extends ConsumerWidget {
       if (context.mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('Import failed: $e')));
+        ).showSnackBar(SnackBar(content: Text('Restore failed: $e')));
       }
     }
   }

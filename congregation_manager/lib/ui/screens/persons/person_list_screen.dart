@@ -15,6 +15,8 @@ import 'package:congregation_manager/ui/dialogs/export_records_dialog.dart';
 import 'package:congregation_manager/ui/dialogs/export_progress_dialog.dart';
 import 'package:congregation_manager/ui/screens/import/csv_sync_preview_screen.dart';
 import 'package:congregation_manager/ui/screens/import/import_persons_screen.dart';
+import 'package:congregation_manager/ui/widgets/app_popup_menu_item.dart';
+import 'package:congregation_manager/ui/widgets/search_text_field.dart';
 
 class PersonListScreen extends ConsumerWidget {
   const PersonListScreen({super.key});
@@ -39,20 +41,16 @@ class PersonListScreen extends ConsumerWidget {
                   _importCsv(context);
               }
             },
-            itemBuilder: (_) => const [
-              PopupMenuItem(
+            itemBuilder: (_) => [
+              AppPopupMenuItem(
                 value: 's21',
-                child: ListTile(
-                  leading: Icon(Icons.picture_as_pdf),
-                  title: Text('Import S-21 Forms'),
-                ),
+                icon: Icons.picture_as_pdf,
+                label: 'Import S-21 Forms',
               ),
-              PopupMenuItem(
+              AppPopupMenuItem(
                 value: 'csv',
-                child: ListTile(
-                  leading: Icon(Icons.sync),
-                  title: Text('Sync Import from CSV'),
-                ),
+                icon: Icons.sync,
+                label: 'Sync Import from CSV',
               ),
             ],
           ),
@@ -83,64 +81,48 @@ class PersonListScreen extends ConsumerWidget {
                   _exportPublisherRecords(context, svc);
               }
             },
-            itemBuilder: (_) => const [
-              PopupMenuItem(
+            itemBuilder: (_) => [
+              AppPopupMenuItem(
                 value: 'directory',
-                child: ListTile(
-                  leading: Icon(Icons.menu_book),
-                  title: Text('Publisher Directory'),
-                ),
+                icon: Icons.menu_book,
+                label: 'Publisher Directory',
               ),
-              PopupMenuItem(
+              AppPopupMenuItem(
                 value: 'list',
-                child: ListTile(
-                  leading: Icon(Icons.list_alt),
-                  title: Text('Publisher List'),
-                ),
+                icon: Icons.list_alt,
+                label: 'Publisher List',
               ),
-              PopupMenuItem(
+              AppPopupMenuItem(
                 value: 'contact',
-                child: ListTile(
-                  leading: Icon(Icons.contact_phone),
-                  title: Text('Publisher Contact List'),
-                ),
+                icon: Icons.contact_phone,
+                label: 'Publisher Contact List',
               ),
-              PopupMenuItem(
+              AppPopupMenuItem(
                 value: 'emergency',
-                child: ListTile(
-                  leading: Icon(Icons.emergency),
-                  title: Text('Emergency Contact List'),
-                ),
+                icon: Icons.emergency,
+                label: 'Emergency Contact List',
               ),
               PopupMenuDivider(),
-              PopupMenuItem(
+              AppPopupMenuItem(
                 value: 'summary',
-                child: ListTile(
-                  leading: Icon(Icons.summarize),
-                  title: Text('Congregation Summary'),
-                ),
+                icon: Icons.summarize,
+                label: 'Congregation Summary',
               ),
               PopupMenuDivider(),
-              PopupMenuItem(
+              AppPopupMenuItem(
                 value: 'exportAll',
-                child: ListTile(
-                  leading: Icon(Icons.folder),
-                  title: Text('Export All Reports'),
-                ),
+                icon: Icons.folder,
+                label: 'Export All Reports',
               ),
-              PopupMenuItem(
+              AppPopupMenuItem(
                 value: 'exportExcel',
-                child: ListTile(
-                  leading: Icon(Icons.table_chart),
-                  title: Text('Export Excel List'),
-                ),
+                icon: Icons.table_chart,
+                label: 'Export Excel List',
               ),
-              PopupMenuItem(
+              AppPopupMenuItem(
                 value: 'exportRecords',
-                child: ListTile(
-                  leading: Icon(Icons.description),
-                  title: Text('Export Publisher Records (S-21)'),
-                ),
+                icon: Icons.description,
+                label: 'Export Publisher Records (S-21)',
               ),
             ],
           ),
@@ -155,25 +137,13 @@ class PersonListScreen extends ConsumerWidget {
         children: [
           Padding(
             padding: const EdgeInsets.all(12),
-            child: TextField(
-              decoration: InputDecoration(
-                hintText: 'Search publishers...',
-                prefixIcon: const Icon(Icons.search),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                isDense: true,
-                suffixIcon: searchQuery.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(Icons.clear),
-                        onPressed: () => ref
-                            .read(personSearchQueryProvider.notifier)
-                            .set(''),
-                      )
-                    : null,
-              ),
+            child: SearchTextField(
+              query: searchQuery,
+              hintText: 'Search publishers...',
               onChanged: (value) =>
                   ref.read(personSearchQueryProvider.notifier).set(value),
+              onClear: () =>
+                  ref.read(personSearchQueryProvider.notifier).set(''),
             ),
           ),
           Expanded(
@@ -284,6 +254,7 @@ class PersonListScreen extends ConsumerWidget {
           serviceYear: options.serviceYear,
           flatten: options.flattenPdf,
           groupByRole: options.groupByRole,
+          groupByFieldServiceGroup: options.groupByFieldServiceGroup,
           twoYearsPerPage: options.twoYearsPerPage,
           onlyUpToPreviousMonth: options.onlyUpToPreviousMonth,
           fileNameTemplate: options.fileNameTemplate,

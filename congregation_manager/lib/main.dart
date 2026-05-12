@@ -21,6 +21,12 @@ ThemeData _buildTheme(Brightness brightness) {
       elevation: 1,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
     ),
+    popupMenuTheme: PopupMenuThemeData(
+      elevation: 3,
+      menuPadding: const EdgeInsets.symmetric(vertical: 4),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      textStyle: TextStyle(color: colorScheme.onSurface, fontSize: 14),
+    ),
     navigationBarTheme: NavigationBarThemeData(
       backgroundColor: navigationBarColor,
       elevation: 2,

@@ -17,71 +17,90 @@ pw.Document generateCongregationSummaryReport({
 
   final pdf = pw.Document(title: 'Congregation Summary');
 
-  pdf.addPage(pw.MultiPage(
-    pageFormat: PdfPageFormat.a4,
-    margin: const pw.EdgeInsets.all(30),
-    header: (context) => pw.Column(
-      crossAxisAlignment: pw.CrossAxisAlignment.start,
-      children: [
-        pw.Text('Congregation Summary',
+  pdf.addPage(
+    pw.MultiPage(
+      pageFormat: PdfPageFormat.a4,
+      margin: const pw.EdgeInsets.all(30),
+      maxPages: PdfStyles.maxPages,
+      header: (context) => pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          pw.Text(
+            'Congregation Summary',
             style: pw.TextStyle(
-                fontSize: 18,
-                fontWeight: pw.FontWeight.bold,
-                color: PdfStyles.headerColor)),
-        pw.Text(generatedAt,
-            style: pw.TextStyle(
-                fontSize: 9, color: PdfStyles.footerColor)),
+              fontSize: 18,
+              fontWeight: pw.FontWeight.bold,
+              color: PdfStyles.headerColor,
+            ),
+          ),
+          pw.Text(
+            generatedAt,
+            style: pw.TextStyle(fontSize: 9, color: PdfStyles.footerColor),
+          ),
+          pw.SizedBox(height: 10),
+        ],
+      ),
+      footer: (context) => pw.Align(
+        alignment: pw.Alignment.centerRight,
+        child: pw.Text(
+          'Page ${context.pageNumber} of ${context.pagesCount}',
+          style: const pw.TextStyle(fontSize: 8),
+        ),
+      ),
+      build: (context) => [
+        _summarySection('All Active Publishers', allActive),
         pw.SizedBox(height: 10),
+        _summarySection('New Inactive Publishers', newInactive),
+        pw.SizedBox(height: 10),
+        _summarySection('Reactivated Publishers', reactivated),
       ],
     ),
-    footer: (context) => pw.Align(
-      alignment: pw.Alignment.centerRight,
-      child: pw.Text(
-          'Page ${context.pageNumber} of ${context.pagesCount}',
-          style: const pw.TextStyle(fontSize: 8)),
-    ),
-    build: (context) => [
-      _summarySection('All Active Publishers', allActive),
-      pw.SizedBox(height: 10),
-      _summarySection('New Inactive Publishers', newInactive),
-      pw.SizedBox(height: 10),
-      _summarySection('Reactivated Publishers', reactivated),
-    ],
-  ));
+  );
 
   return pdf;
 }
 
 pw.Widget _summarySection(String title, List<Person> people) {
   final sorted = List<Person>.from(people)
-    ..sort((a, b) => formatPersonName(a.firstName, a.lastName)
-        .compareTo(formatPersonName(b.firstName, b.lastName)));
+    ..sort(
+      (a, b) => formatPersonName(
+        a.firstName,
+        a.lastName,
+      ).compareTo(formatPersonName(b.firstName, b.lastName)),
+    );
 
   final dateFormat = DateFormat.yMMMd();
 
   return pw.Column(
     crossAxisAlignment: pw.CrossAxisAlignment.start,
     children: [
-      pw.Text(title,
-          style: pw.TextStyle(
-              fontSize: 14, fontWeight: pw.FontWeight.bold)),
-      pw.Text('${sorted.length} record(s)',
-          style: pw.TextStyle(
-              fontSize: 10, color: PdfStyles.footerColor)),
+      pw.Text(
+        title,
+        style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold),
+      ),
+      pw.Text(
+        '${sorted.length} record(s)',
+        style: pw.TextStyle(fontSize: 10, color: PdfStyles.footerColor),
+      ),
       pw.SizedBox(height: 5),
       if (sorted.isEmpty)
         pw.Padding(
           padding: const pw.EdgeInsets.symmetric(vertical: 10),
-          child: pw.Text('No records in this category.',
-              style: pw.TextStyle(
-                  fontStyle: pw.FontStyle.italic,
-                  color: PdfStyles.footerColor)),
+          child: pw.Text(
+            'No records in this category.',
+            style: pw.TextStyle(
+              fontStyle: pw.FontStyle.italic,
+              color: PdfStyles.footerColor,
+            ),
+          ),
         )
       else
         pw.TableHelper.fromTextArray(
           border: null,
-          headerStyle:
-              pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold),
+          headerStyle: pw.TextStyle(
+            fontSize: 9,
+            fontWeight: pw.FontWeight.bold,
+          ),
           headerDecoration: PdfStyles.headerDecoration,
           cellStyle: const pw.TextStyle(fontSize: 9),
           cellDecoration: (index, data, rowNum) => PdfStyles.rowBorder,

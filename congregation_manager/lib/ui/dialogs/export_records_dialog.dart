@@ -5,6 +5,7 @@ import 'package:congregation_manager/services/publisher_record_writer.dart';
 class ExportRecordsOptions {
   final int serviceYear;
   final bool groupByRole;
+  final bool groupByFieldServiceGroup;
   final bool flattenPdf;
   final bool twoYearsPerPage;
   final bool onlyUpToPreviousMonth;
@@ -13,6 +14,7 @@ class ExportRecordsOptions {
   const ExportRecordsOptions({
     required this.serviceYear,
     required this.groupByRole,
+    required this.groupByFieldServiceGroup,
     required this.flattenPdf,
     required this.twoYearsPerPage,
     required this.onlyUpToPreviousMonth,
@@ -42,6 +44,7 @@ class _ExportRecordsDialogState extends State<ExportRecordsDialog> {
   late final List<int> _serviceYears;
   int? _selectedYear;
   bool _groupByRole = true;
+  bool _groupByFieldServiceGroup = false;
   bool _flattenPdf = false;
   bool _twoYearsPerPage = false;
   bool _onlyUpToPreviousMonth = true;
@@ -67,6 +70,7 @@ class _ExportRecordsDialogState extends State<ExportRecordsDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
+      scrollable: true,
       title: const Text('Export Publisher Records'),
       content: SizedBox(
         width: 360,
@@ -98,7 +102,27 @@ class _ExportRecordsDialogState extends State<ExportRecordsDialog> {
                 'Creates subfolders: Elders, MS, RP, SP, Publishers',
               ),
               value: _groupByRole,
-              onChanged: (v) => setState(() => _groupByRole = v ?? true),
+              onChanged: (v) => setState(() {
+                _groupByRole = v ?? true;
+                if (_groupByRole) {
+                  _groupByFieldServiceGroup = false;
+                }
+              }),
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+            ),
+            CheckboxListTile(
+              title: const Text('Group by field service group'),
+              subtitle: const Text(
+                'Creates subfolders for each field service group',
+              ),
+              value: _groupByFieldServiceGroup,
+              onChanged: (v) => setState(() {
+                _groupByFieldServiceGroup = v ?? false;
+                if (_groupByFieldServiceGroup) {
+                  _groupByRole = false;
+                }
+              }),
               dense: true,
               contentPadding: EdgeInsets.zero,
             ),
@@ -159,6 +183,7 @@ class _ExportRecordsDialogState extends State<ExportRecordsDialog> {
                     ExportRecordsOptions(
                       serviceYear: _selectedYear!,
                       groupByRole: _groupByRole,
+                      groupByFieldServiceGroup: _groupByFieldServiceGroup,
                       flattenPdf: _flattenPdf,
                       twoYearsPerPage: _twoYearsPerPage,
                       onlyUpToPreviousMonth: _onlyUpToPreviousMonth,

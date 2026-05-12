@@ -10,36 +10,40 @@ class PdfStyles {
   static const double fontSize = 9;
   static const double titleFontSize = 18;
   static const double sectionTitleFontSize = 12;
+  static const int maxPages = 500;
 
   static pw.TextStyle title(pw.Font? fontBold) => pw.TextStyle(
-        fontSize: titleFontSize,
-        fontWeight: pw.FontWeight.bold,
-        color: headerColor,
-        font: fontBold,
-      );
+    fontSize: titleFontSize,
+    fontWeight: pw.FontWeight.bold,
+    color: headerColor,
+    font: fontBold,
+  );
 
   static pw.TextStyle sectionTitle(pw.Font? fontBold) => pw.TextStyle(
-        fontSize: sectionTitleFontSize,
-        fontWeight: pw.FontWeight.bold,
-        font: fontBold,
-      );
+    fontSize: sectionTitleFontSize,
+    fontWeight: pw.FontWeight.bold,
+    font: fontBold,
+  );
 
-  static pw.BoxDecoration get headerDecoration => pw.BoxDecoration(
-        color: headerBg,
-      );
+  static pw.BoxDecoration get headerDecoration =>
+      pw.BoxDecoration(color: headerBg);
 
   static pw.BoxDecoration get rowBorder => pw.BoxDecoration(
-        border: pw.Border(bottom: pw.BorderSide(color: borderColor)),
-      );
+    border: pw.Border(bottom: pw.BorderSide(color: borderColor)),
+  );
 
   static pw.Widget headerCell(String text, {pw.Alignment? alignment}) =>
       pw.Container(
         padding: const pw.EdgeInsets.all(4),
         decoration: headerDecoration,
         alignment: alignment ?? pw.Alignment.centerLeft,
-        child: pw.Text(text,
-            style: pw.TextStyle(
-                fontSize: fontSize, fontWeight: pw.FontWeight.bold)),
+        child: pw.Text(
+          text,
+          style: pw.TextStyle(
+            fontSize: fontSize,
+            fontWeight: pw.FontWeight.bold,
+          ),
+        ),
       );
 
   static pw.Widget dataCell(String text, {pw.Alignment? alignment}) =>
@@ -50,21 +54,18 @@ class PdfStyles {
         child: pw.Text(text, style: const pw.TextStyle(fontSize: fontSize)),
       );
 
-  static pw.Widget pageFooter(pw.Context context, {String? leftText}) =>
-      pw.Row(
-        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-        children: [
-          if (leftText != null)
-            pw.Text(leftText,
-                style: pw.TextStyle(
-                    fontSize: 8, color: footerColor)),
-          if (leftText == null) pw.SizedBox(),
-          pw.Text(
-            'Page ${context.pageNumber} / ${context.pagesCount}',
-            style: pw.TextStyle(fontSize: 8, color: footerColor),
-          ),
-        ],
-      );
+  static pw.Widget pageFooter(pw.Context context, {String? leftText}) => pw.Row(
+    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+    children: [
+      if (leftText != null)
+        pw.Text(leftText, style: pw.TextStyle(fontSize: 8, color: footerColor)),
+      if (leftText == null) pw.SizedBox(),
+      pw.Text(
+        'Page ${context.pageNumber} / ${context.pagesCount}',
+        style: pw.TextStyle(fontSize: 8, color: footerColor),
+      ),
+    ],
+  );
 }
 
 /// Formats a person name as "LastName, FirstName".

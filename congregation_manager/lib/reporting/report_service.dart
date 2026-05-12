@@ -452,6 +452,7 @@ class ReportService {
     required int serviceYear,
     bool flatten = false,
     bool groupByRole = false,
+    bool groupByFieldServiceGroup = false,
     bool twoYearsPerPage = false,
     bool onlyUpToPreviousMonth = false,
     String fileNameTemplate = '{LastName}, {FirstName}',
@@ -461,12 +462,22 @@ class ReportService {
       const ExportProgress(current: 0, total: 0, message: 'Loading publishers'),
     );
     final persons = await db.getAllPersons(congregationId: congregationId);
+    final groupsById = groupByFieldServiceGroup
+        ? await _loadGroupsById()
+        : const <int, FieldServiceGroup>{};
     final active = persons.where((p) => p.isActive).toList()
-      ..sort(
-        (a, b) => '${a.lastName}, ${a.firstName}'.compareTo(
+      ..sort((a, b) {
+        if (groupByFieldServiceGroup) {
+          final byGroup = _groupSortName(
+            a,
+            groupsById,
+          ).compareTo(_groupSortName(b, groupsById));
+          if (byGroup != 0) return byGroup;
+        }
+        return '${a.lastName}, ${a.firstName}'.compareTo(
           '${b.lastName}, ${b.firstName}',
-        ),
-      );
+        );
+      });
 
     final reportsByPerson = <int, List<ServiceReport>>{};
     for (var i = 0; i < active.length; i++) {
@@ -490,6 +501,8 @@ class ReportService {
       outputDir: dirPath,
       flatten: flatten,
       groupByRole: groupByRole,
+      groupByFieldServiceGroup: groupByFieldServiceGroup,
+      groupsById: groupsById,
       twoYearsPerPage: twoYearsPerPage,
       onlyUpToPreviousMonth: onlyUpToPreviousMonth,
       onProgress: onProgress,
@@ -503,6 +516,17 @@ class ReportService {
             );
       },
     );
+  }
+
+  static String _groupSortName(
+    Person person,
+    Map<int, FieldServiceGroup> groupsById,
+  ) {
+    final groupId = person.fieldServiceGroupId;
+    if (groupId == null) return 'Unassigned';
+    final groupName = groupsById[groupId]?.name.trim();
+    if (groupName == null || groupName.isEmpty) return 'Unassigned';
+    return groupName;
   }
 }
 

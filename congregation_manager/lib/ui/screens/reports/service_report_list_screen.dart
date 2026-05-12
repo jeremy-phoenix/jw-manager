@@ -10,6 +10,8 @@ import 'package:congregation_manager/providers/settings_providers.dart';
 import 'package:congregation_manager/providers/database_provider.dart';
 import 'package:congregation_manager/providers/service_report_providers.dart';
 import 'package:congregation_manager/reporting/report_service.dart';
+import 'package:congregation_manager/ui/widgets/app_popup_menu_item.dart';
+import 'package:congregation_manager/ui/widgets/search_text_field.dart';
 
 class ServiceReportListScreen extends ConsumerWidget {
   const ServiceReportListScreen({super.key});
@@ -64,31 +66,23 @@ class ServiceReportListScreen extends ConsumerWidget {
                   _deleteReports(context, ref);
               }
             },
-            itemBuilder: (_) => const [
-              PopupMenuItem(
+            itemBuilder: (_) => [
+              AppPopupMenuItem(
                 value: 'not_shared',
-                child: ListTile(
-                  leading: Icon(Icons.person_off),
-                  title: Text('Not Shared in Ministry'),
-                ),
+                icon: Icons.person_off,
+                label: 'Not Shared in Ministry',
               ),
-              PopupMenuItem(
+              AppPopupMenuItem(
                 value: 'not_shared_group',
-                child: ListTile(
-                  leading: Icon(Icons.group_off),
-                  title: Text('Not Shared by Group'),
-                ),
+                icon: Icons.group_off,
+                label: 'Not Shared by Group',
               ),
               PopupMenuDivider(),
-              PopupMenuItem(
+              AppPopupMenuItem(
                 value: 'delete_reports',
-                child: ListTile(
-                  leading: Icon(Icons.delete_outline, color: Colors.red),
-                  title: Text(
-                    'Delete Reports...',
-                    style: TextStyle(color: Colors.red),
-                  ),
-                ),
+                icon: Icons.delete_outline,
+                label: 'Delete Reports...',
+                color: Colors.red,
               ),
             ],
           ),
@@ -309,8 +303,9 @@ class ServiceReportListScreen extends ConsumerWidget {
   }
 
   Widget _buildSearchField(WidgetRef ref, String searchQuery) {
-    return _ServiceReportSearchField(
+    return SearchTextField(
       query: searchQuery,
+      hintText: 'Search reports...',
       onChanged: (value) =>
           ref.read(serviceReportSearchQueryProvider.notifier).set(value),
       onClear: () =>
@@ -432,70 +427,6 @@ class _DisabledFilterField extends StatelessWidget {
         enabled: false,
       ),
       child: Text(value, maxLines: 1, overflow: TextOverflow.ellipsis),
-    );
-  }
-}
-
-class _ServiceReportSearchField extends StatefulWidget {
-  final String query;
-  final ValueChanged<String> onChanged;
-  final VoidCallback onClear;
-
-  const _ServiceReportSearchField({
-    required this.query,
-    required this.onChanged,
-    required this.onClear,
-  });
-
-  @override
-  State<_ServiceReportSearchField> createState() =>
-      _ServiceReportSearchFieldState();
-}
-
-class _ServiceReportSearchFieldState extends State<_ServiceReportSearchField> {
-  late final TextEditingController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = TextEditingController(text: widget.query);
-  }
-
-  @override
-  void didUpdateWidget(covariant _ServiceReportSearchField oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.query != _controller.text) {
-      _controller.value = TextEditingValue(
-        text: widget.query,
-        selection: TextSelection.collapsed(offset: widget.query.length),
-      );
-    }
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return TextField(
-      controller: _controller,
-      decoration: InputDecoration(
-        hintText: 'Search reports...',
-        prefixIcon: const Icon(Icons.search),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-        isDense: true,
-        suffixIcon: widget.query.isEmpty
-            ? null
-            : IconButton(
-                icon: const Icon(Icons.clear),
-                tooltip: 'Clear Search',
-                onPressed: widget.onClear,
-              ),
-      ),
-      onChanged: widget.onChanged,
     );
   }
 }

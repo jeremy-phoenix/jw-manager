@@ -5,6 +5,8 @@ import 'package:congregation_manager/data/database.dart';
 import 'package:congregation_manager/providers/database_provider.dart';
 import 'package:congregation_manager/providers/group_providers.dart';
 import 'package:congregation_manager/providers/settings_providers.dart';
+import 'package:congregation_manager/ui/widgets/app_popup_menu_item.dart';
+import 'package:congregation_manager/ui/widgets/search_text_field.dart';
 
 class GroupListScreen extends ConsumerWidget {
   const GroupListScreen({super.key});
@@ -31,24 +33,13 @@ class GroupListScreen extends ConsumerWidget {
         children: [
           Padding(
             padding: const EdgeInsets.all(12),
-            child: TextField(
-              decoration: InputDecoration(
-                hintText: 'Search groups...',
-                prefixIcon: const Icon(Icons.search),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                isDense: true,
-                suffixIcon: searchQuery.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(Icons.clear),
-                        onPressed: () =>
-                            ref.read(groupSearchQueryProvider.notifier).set(''),
-                      )
-                    : null,
-              ),
+            child: SearchTextField(
+              query: searchQuery,
+              hintText: 'Search groups...',
               onChanged: (value) =>
                   ref.read(groupSearchQueryProvider.notifier).set(value),
+              onClear: () =>
+                  ref.read(groupSearchQueryProvider.notifier).set(''),
             ),
           ),
           Expanded(
@@ -247,28 +238,22 @@ class _GroupListCard extends StatelessWidget {
                 onDelete();
             }
           },
-          itemBuilder: (_) => const [
-            PopupMenuItem(
+          itemBuilder: (_) => [
+            AppPopupMenuItem(
               value: 'view',
-              child: ListTile(
-                leading: Icon(Icons.groups),
-                title: Text('View Publishers'),
-              ),
+              icon: Icons.groups,
+              label: 'View Publishers',
             ),
-            PopupMenuItem(
+            AppPopupMenuItem(
               value: 'edit',
-              child: ListTile(
-                leading: Icon(Icons.edit),
-                title: Text('Edit Group'),
-              ),
+              icon: Icons.edit,
+              label: 'Edit Group',
             ),
             PopupMenuDivider(),
-            PopupMenuItem(
+            AppPopupMenuItem(
               value: 'delete',
-              child: ListTile(
-                leading: Icon(Icons.delete),
-                title: Text('Delete Group'),
-              ),
+              icon: Icons.delete,
+              label: 'Delete Group',
             ),
           ],
         ),

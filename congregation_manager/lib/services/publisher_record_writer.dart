@@ -260,6 +260,8 @@ class PublisherRecordWriter {
     bool flatten = false,
     bool onlyUpToPreviousMonth = false,
     bool groupByRole = false,
+    bool groupByFieldServiceGroup = false,
+    Map<int, FieldServiceGroup> groupsById = const {},
     bool twoYearsPerPage = false,
     String Function(Person)? fileNameFormatter,
     ExportProgressCallback? onProgress,
@@ -299,20 +301,31 @@ class PublisherRecordWriter {
             .where((r) => r.year == serviceYear)
             .toList();
 
-        String subDir = outputDir;
+        var subDir = outputDir;
+        final subDirectoryParts = <String>[];
+        if (groupByFieldServiceGroup) {
+          subDirectoryParts.add(
+            _getFieldServiceGroupFolderName(person, groupsById),
+          );
+        }
         if (groupByRole) {
-          final roleName = _getRoleFolderName(person);
-          subDir = '$outputDir/$roleName';
-          final roleDir = Directory(subDir);
-          if (!await roleDir.exists()) {
-            await roleDir.create(recursive: true);
+          subDirectoryParts.add(_getRoleFolderName(person));
+        }
+        if (subDirectoryParts.isNotEmpty) {
+          final subPath = subDirectoryParts
+              .map(_sanitizeFileSystemSegment)
+              .join('/');
+          subDir = '$outputDir/$subPath';
+          final exportDir = Directory(subDir);
+          if (!await exportDir.exists()) {
+            await exportDir.create(recursive: true);
           }
         }
 
         final fileName = fileNameFormatter != null
             ? fileNameFormatter(person)
             : '${person.lastName}, ${person.firstName}';
-        final safeName = fileName.replaceAll(RegExp(r'[<>:"/\\|?*]'), '_');
+        final safeName = _sanitizeFileSystemSegment(fileName);
         final filePath = '$subDir/$safeName.pdf';
 
         if (twoYearsPerPage) {
@@ -356,6 +369,22 @@ class PublisherRecordWriter {
     );
 
     return errors;
+  }
+
+  static String _getFieldServiceGroupFolderName(
+    Person person,
+    Map<int, FieldServiceGroup> groupsById,
+  ) {
+    final groupId = person.fieldServiceGroupId;
+    if (groupId == null) return 'Unassigned';
+    final groupName = groupsById[groupId]?.name.trim();
+    if (groupName == null || groupName.isEmpty) return 'Unassigned';
+    return groupName;
+  }
+
+  static String _sanitizeFileSystemSegment(String value) {
+    final sanitized = value.replaceAll(RegExp(r'[<>:"/\\|?*]'), '_').trim();
+    return sanitized.isEmpty ? 'Unnamed' : sanitized;
   }
 
   static String _getRoleFolderName(Person person) {
