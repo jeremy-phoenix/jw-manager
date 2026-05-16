@@ -1,4 +1,5 @@
 import 'package:drift/drift.dart' as drift;
+import 'package:data_table_2/data_table_2.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -8,6 +9,7 @@ import 'package:congregation_manager/providers/congregation_providers.dart';
 import 'package:congregation_manager/providers/database_provider.dart';
 import 'package:congregation_manager/providers/person_providers.dart';
 import 'package:congregation_manager/providers/group_providers.dart';
+import 'package:congregation_manager/ui/widgets/sticky_data_table.dart';
 
 class PersonEditScreen extends ConsumerStatefulWidget {
   final int? personId;
@@ -914,7 +916,7 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen>
                 TextFormField(
                   initialValue: r.note,
                   decoration: const InputDecoration(
-                    labelText: 'Note',
+                    labelText: 'Notes/Remarks',
                     border: OutlineInputBorder(),
                     isDense: true,
                   ),
@@ -929,92 +931,119 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen>
   }
 
   Widget _buildReportTable(List<_ServiceReportEntry> reports) {
-    return SingleChildScrollView(
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          return ConstrainedBox(
-            constraints: BoxConstraints(minWidth: constraints.maxWidth),
-            child: DataTable(
-              columnSpacing: 16,
-              columns: const [
-                DataColumn(label: Text('Year')),
-                DataColumn(label: Text('Month')),
-                DataColumn(label: Text('Shared')),
-                DataColumn(label: Text('Studies')),
-                DataColumn(label: Text('Aux Pioneer')),
-                DataColumn(label: Text('Hours')),
-                DataColumn(label: Text('Note')),
-              ],
-              rows: reports.map((r) {
-                return DataRow(
-                  cells: [
-                    DataCell(Text('${r.year}')),
-                    DataCell(Text(_monthName(r.month))),
-                    DataCell(
-                      Checkbox(
-                        value: r.sharedInMinistry,
-                        onChanged: (v) =>
-                            setState(() => r.sharedInMinistry = v ?? false),
-                      ),
-                    ),
-                    DataCell(
-                      SizedBox(
-                        width: 60,
-                        child: TextFormField(
-                          initialValue: r.bibleStudies > 0
-                              ? r.bibleStudies.toString()
-                              : '',
-                          decoration: const InputDecoration(
-                            border: InputBorder.none,
-                            isDense: true,
-                          ),
-                          keyboardType: TextInputType.number,
-                          onChanged: (v) =>
-                              r.bibleStudies = int.tryParse(v) ?? 0,
-                        ),
-                      ),
-                    ),
-                    DataCell(
-                      Checkbox(
-                        value: r.isAuxiliaryPioneer,
-                        onChanged: (v) =>
-                            setState(() => r.isAuxiliaryPioneer = v ?? false),
-                      ),
-                    ),
-                    DataCell(
-                      SizedBox(
-                        width: 60,
-                        child: TextFormField(
-                          initialValue: r.hours > 0 ? r.hours.toString() : '',
-                          decoration: const InputDecoration(
-                            border: InputBorder.none,
-                            isDense: true,
-                          ),
-                          keyboardType: TextInputType.number,
-                          onChanged: (v) => r.hours = double.tryParse(v) ?? 0,
-                        ),
-                      ),
-                    ),
-                    DataCell(
-                      SizedBox(
-                        width: 120,
-                        child: TextFormField(
-                          initialValue: r.note,
-                          decoration: const InputDecoration(
-                            border: InputBorder.none,
-                            isDense: true,
-                          ),
-                          onChanged: (v) => r.note = v,
-                        ),
-                      ),
-                    ),
-                  ],
-                );
-              }).toList(),
+    return StickyDataTable(
+      minWidth: 920,
+      columnSpacing: 12,
+      horizontalMargin: 12,
+      columns: const [
+        DataColumn2(
+          label: Text('Year'),
+          fixedWidth: 72,
+          headingRowAlignment: MainAxisAlignment.center,
+        ),
+        DataColumn2(label: Text('Month'), fixedWidth: 112),
+        DataColumn2(
+          label: Text('Shared'),
+          fixedWidth: 82,
+          headingRowAlignment: MainAxisAlignment.center,
+        ),
+        DataColumn2(
+          label: Text('Studies'),
+          fixedWidth: 82,
+          headingRowAlignment: MainAxisAlignment.center,
+        ),
+        DataColumn2(
+          label: Text('Aux.'),
+          tooltip: 'Auxiliary Pioneer',
+          fixedWidth: 72,
+          headingRowAlignment: MainAxisAlignment.center,
+        ),
+        DataColumn2(
+          label: Text('Hours'),
+          fixedWidth: 82,
+          headingRowAlignment: MainAxisAlignment.center,
+        ),
+        DataColumn2(
+          label: Text('Notes/Remarks'),
+          size: ColumnSize.L,
+          minWidth: 220,
+        ),
+      ],
+      rows: reports.map((r) {
+        return DataRow(
+          cells: [
+            DataCell(Center(child: Text('${r.year}'))),
+            DataCell(Text(_monthName(r.month))),
+            DataCell(
+              Center(
+                child: Checkbox(
+                  value: r.sharedInMinistry,
+                  onChanged: (v) =>
+                      setState(() => r.sharedInMinistry = v ?? false),
+                ),
+              ),
             ),
-          );
-        },
-      ),
+            DataCell(
+              Center(
+                child: SizedBox(
+                  width: 60,
+                  child: TextFormField(
+                    initialValue: r.bibleStudies > 0
+                        ? r.bibleStudies.toString()
+                        : '',
+                    decoration: const InputDecoration(
+                      border: InputBorder.none,
+                      isDense: true,
+                    ),
+                    textAlign: TextAlign.center,
+                    keyboardType: TextInputType.number,
+                    onChanged: (v) => r.bibleStudies = int.tryParse(v) ?? 0,
+                  ),
+                ),
+              ),
+            ),
+            DataCell(
+              Center(
+                child: Checkbox(
+                  value: r.isAuxiliaryPioneer,
+                  onChanged: (v) =>
+                      setState(() => r.isAuxiliaryPioneer = v ?? false),
+                ),
+              ),
+            ),
+            DataCell(
+              Center(
+                child: SizedBox(
+                  width: 60,
+                  child: TextFormField(
+                    initialValue: r.hours > 0 ? r.hours.toString() : '',
+                    decoration: const InputDecoration(
+                      border: InputBorder.none,
+                      isDense: true,
+                    ),
+                    textAlign: TextAlign.center,
+                    keyboardType: TextInputType.number,
+                    onChanged: (v) => r.hours = double.tryParse(v) ?? 0,
+                  ),
+                ),
+              ),
+            ),
+            DataCell(
+              ConstrainedBox(
+                constraints: const BoxConstraints(minWidth: 180),
+                child: TextFormField(
+                  initialValue: r.note,
+                  decoration: const InputDecoration(
+                    border: InputBorder.none,
+                    isDense: true,
+                  ),
+                  onChanged: (v) => r.note = v,
+                ),
+              ),
+            ),
+          ],
+        );
+      }).toList(),
     );
   }
 

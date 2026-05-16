@@ -6,6 +6,7 @@ import 'package:congregation_manager/data/enums.dart';
 import 'package:congregation_manager/providers/group_providers.dart';
 import 'package:congregation_manager/providers/person_providers.dart';
 import 'package:congregation_manager/providers/settings_providers.dart';
+import 'package:congregation_manager/ui/widgets/sticky_data_table.dart';
 
 class GroupMembersScreen extends ConsumerWidget {
   final int? groupId;
@@ -182,71 +183,55 @@ class _GroupMembersTable extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        return SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: ConstrainedBox(
-            constraints: BoxConstraints(minWidth: constraints.maxWidth),
-            child: SingleChildScrollView(
-              child: DataTable(
-                columns: [
-                  DataColumn(
-                    label: Text(
-                      nameOrder == NameOrder.lastFirst
-                          ? 'Last Name'
-                          : 'First Name',
-                    ),
-                  ),
-                  DataColumn(
-                    label: Text(
-                      nameOrder == NameOrder.lastFirst
-                          ? 'First Name'
-                          : 'Last Name',
-                    ),
-                  ),
-                  const DataColumn(label: Text('Role')),
-                  const DataColumn(label: Text('Pioneer')),
-                  const DataColumn(label: Text('Active')),
-                ],
-                rows: members.map((person) {
-                  return DataRow(
-                    onLongPress: () =>
-                        context.push('/persons/edit/${person.id}'),
-                    cells: [
-                      DataCell(
-                        Text(
-                          nameOrder == NameOrder.lastFirst
-                              ? person.lastName
-                              : person.firstName,
-                        ),
-                        onTap: () => context.push('/persons/edit/${person.id}'),
-                      ),
-                      DataCell(
-                        Text(
-                          nameOrder == NameOrder.lastFirst
-                              ? person.firstName
-                              : person.lastName,
-                        ),
-                        onTap: () => context.push('/persons/edit/${person.id}'),
-                      ),
-                      DataCell(_roleBadge(context, person.congregationRole)),
-                      DataCell(_pioneerBadge(context, person.pioneerType)),
-                      DataCell(
-                        Icon(
-                          person.isActive ? Icons.check_circle : Icons.cancel,
-                          color: person.isActive ? Colors.green : Colors.red,
-                          size: 18,
-                        ),
-                      ),
-                    ],
-                  );
-                }).toList(),
+    return StickyDataTable(
+      minWidth: 720,
+      columns: [
+        DataColumn(
+          label: Text(
+            nameOrder == NameOrder.lastFirst ? 'Last Name' : 'First Name',
+          ),
+        ),
+        DataColumn(
+          label: Text(
+            nameOrder == NameOrder.lastFirst ? 'First Name' : 'Last Name',
+          ),
+        ),
+        const DataColumn(label: Text('Role')),
+        const DataColumn(label: Text('Pioneer')),
+        const DataColumn(label: Text('Active')),
+      ],
+      rows: members.map((person) {
+        return DataRow(
+          onLongPress: () => context.push('/persons/edit/${person.id}'),
+          cells: [
+            DataCell(
+              Text(
+                nameOrder == NameOrder.lastFirst
+                    ? person.lastName
+                    : person.firstName,
+              ),
+              onTap: () => context.push('/persons/edit/${person.id}'),
+            ),
+            DataCell(
+              Text(
+                nameOrder == NameOrder.lastFirst
+                    ? person.firstName
+                    : person.lastName,
+              ),
+              onTap: () => context.push('/persons/edit/${person.id}'),
+            ),
+            DataCell(_roleBadge(context, person.congregationRole)),
+            DataCell(_pioneerBadge(context, person.pioneerType)),
+            DataCell(
+              Icon(
+                person.isActive ? Icons.check_circle : Icons.cancel,
+                color: person.isActive ? Colors.green : Colors.red,
+                size: 18,
               ),
             ),
-          ),
+          ],
         );
-      },
+      }).toList(),
     );
   }
 }

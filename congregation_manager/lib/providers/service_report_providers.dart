@@ -50,6 +50,18 @@ final showNotSharedOnlyProvider =
       ShowNotSharedOnlyNotifier.new,
     );
 
+/// Whether to include inactive publishers in the service reports list.
+class ShowInactivePublishersNotifier extends Notifier<bool> {
+  @override
+  bool build() => false;
+  void set(bool value) => state = value;
+}
+
+final showInactivePublishersProvider =
+    NotifierProvider<ShowInactivePublishersNotifier, bool>(
+      ShowInactivePublishersNotifier.new,
+    );
+
 /// Search query for the service reports screen.
 class ServiceReportSearchQueryNotifier extends Notifier<String> {
   @override
@@ -68,10 +80,12 @@ final serviceReportsProvider = StreamProvider<List<ServiceReport>>((ref) {
   final year = ref.watch(selectedYearProvider);
   final month = ref.watch(selectedMonthProvider);
   final congId = ref.watch(currentCongregationIdProvider);
+  final showInactivePublishers = ref.watch(showInactivePublishersProvider);
   return db.watchServiceReports(
     year: year,
     month: month,
     congregationId: congId,
+    includeInactivePublishers: showInactivePublishers,
   );
 });
 

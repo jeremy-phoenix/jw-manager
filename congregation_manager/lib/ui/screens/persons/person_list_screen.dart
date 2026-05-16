@@ -1,3 +1,4 @@
+import 'package:data_table_2/data_table_2.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -17,6 +18,7 @@ import 'package:congregation_manager/ui/screens/import/csv_sync_preview_screen.d
 import 'package:congregation_manager/ui/screens/import/import_persons_screen.dart';
 import 'package:congregation_manager/ui/widgets/app_popup_menu_item.dart';
 import 'package:congregation_manager/ui/widgets/search_text_field.dart';
+import 'package:congregation_manager/ui/widgets/sticky_data_table.dart';
 
 class PersonListScreen extends ConsumerWidget {
   const PersonListScreen({super.key});
@@ -25,6 +27,7 @@ class PersonListScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final filteredPersons = ref.watch(filteredPersonsProvider);
     final searchQuery = ref.watch(personSearchQueryProvider);
+    final showInactivePersons = ref.watch(showInactivePersonsProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -137,13 +140,24 @@ class PersonListScreen extends ConsumerWidget {
         children: [
           Padding(
             padding: const EdgeInsets.all(12),
-            child: SearchTextField(
-              query: searchQuery,
-              hintText: 'Search publishers...',
-              onChanged: (value) =>
-                  ref.read(personSearchQueryProvider.notifier).set(value),
-              onClear: () =>
-                  ref.read(personSearchQueryProvider.notifier).set(''),
+            child: Row(
+              children: [
+                Expanded(
+                  child: SearchTextField(
+                    query: searchQuery,
+                    hintText: 'Search publishers...',
+                    onChanged: (value) =>
+                        ref.read(personSearchQueryProvider.notifier).set(value),
+                    onClear: () =>
+                        ref.read(personSearchQueryProvider.notifier).set(''),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                _buildMoreFilters(
+                  ref,
+                  showInactivePersons: showInactivePersons,
+                ),
+              ],
             ),
           ),
           Expanded(
@@ -160,6 +174,30 @@ class PersonListScreen extends ConsumerWidget {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildMoreFilters(WidgetRef ref, {required bool showInactivePersons}) {
+    return PopupMenuButton<String>(
+      icon: Icon(showInactivePersons ? Icons.tune : Icons.more_horiz),
+      tooltip: 'More filters',
+      onSelected: (value) {
+        switch (value) {
+          case 'inactive':
+            ref
+                .read(showInactivePersonsProvider.notifier)
+                .set(!showInactivePersons);
+        }
+      },
+      itemBuilder: (context) => [
+        PopupMenuItem(
+          value: 'inactive',
+          child: _MoreFilterMenuItem(
+            checked: showInactivePersons,
+            label: 'Show inactive publishers',
+          ),
+        ),
+      ],
     );
   }
 
@@ -414,12 +452,14 @@ class _PersonDataTableState extends ConsumerState<_PersonDataTable> {
                 ? a.firstName.compareTo(b.firstName)
                 : a.lastName.compareTo(b.lastName);
           case 2:
+            result = a.otherNames.compareTo(b.otherNames);
+          case 3:
             result = a.congregationRole.index.compareTo(
               b.congregationRole.index,
             );
-          case 3:
-            result = a.pioneerType.index.compareTo(b.pioneerType.index);
           case 4:
+            result = a.pioneerType.index.compareTo(b.pioneerType.index);
+          case 5:
             result = (a.isActive ? 1 : 0).compareTo(b.isActive ? 1 : 0);
           default:
             result = 0;
@@ -447,9 +487,18 @@ class _PersonDataTableState extends ConsumerState<_PersonDataTable> {
               ],
             ),
           ),
+        Expanded(child: _buildListWithFooter(sorted, isWide: isWide)),
+      ],
+    );
+  }
+
+  Widget _buildListWithFooter(List<Person> sorted, {required bool isWide}) {
+    return Column(
+      children: [
         Expanded(
           child: isWide ? _buildDataTable(sorted) : _buildCardList(sorted),
         ),
+        _PublisherListFooter(persons: sorted),
       ],
     );
   }
@@ -462,6 +511,7 @@ class _PersonDataTableState extends ConsumerState<_PersonDataTable> {
         final person = sorted[index];
         final isSelected = _selectedIds.contains(person.id);
         final badges = _publisherBadges(person);
+        final cardSubtitle = _buildCardSubtitle(person, badges);
         return Card(
           margin: const EdgeInsets.symmetric(vertical: 4),
           color: isSelected
@@ -479,12 +529,7 @@ class _PersonDataTableState extends ConsumerState<_PersonDataTable> {
                 ref.watch(nameOrderProvider),
               ),
             ),
-            subtitle: badges.isEmpty
-                ? null
-                : Padding(
-                    padding: const EdgeInsets.only(top: 6),
-                    child: Wrap(spacing: 6, runSpacing: 6, children: badges),
-                  ),
+            subtitle: cardSubtitle,
             trailing: const Icon(Icons.chevron_right),
             onTap: () => context.push('/persons/edit/${person.id}'),
             onLongPress: () {
@@ -503,86 +548,141 @@ class _PersonDataTableState extends ConsumerState<_PersonDataTable> {
   }
 
   Widget _buildDataTable(List<Person> sorted) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        return SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: ConstrainedBox(
-            constraints: BoxConstraints(minWidth: constraints.maxWidth),
-            child: SingleChildScrollView(
-              child: DataTable(
-                sortColumnIndex: _sortColumnIndex,
-                sortAscending: _sortAscending,
-                showCheckboxColumn: true,
-                columns: [
-                  DataColumn(
-                    label: Text(
-                      ref.watch(nameOrderProvider) == NameOrder.lastFirst
-                          ? 'Last Name'
-                          : 'First Name',
-                    ),
-                    onSort: _onSort,
-                  ),
-                  DataColumn(
-                    label: Text(
-                      ref.watch(nameOrderProvider) == NameOrder.lastFirst
-                          ? 'First Name'
-                          : 'Last Name',
-                    ),
-                    onSort: _onSort,
-                  ),
-                  DataColumn(label: const Text('Role'), onSort: _onSort),
-                  DataColumn(label: const Text('Pioneer'), onSort: _onSort),
-                  DataColumn(label: const Text('Active'), onSort: _onSort),
-                ],
-                rows: sorted.map((person) {
-                  return DataRow(
-                    selected: _selectedIds.contains(person.id),
-                    onSelectChanged: (selected) {
-                      setState(() {
-                        if (selected == true) {
-                          _selectedIds.add(person.id);
-                        } else {
-                          _selectedIds.remove(person.id);
-                        }
-                      });
-                    },
-                    onLongPress: () =>
-                        context.push('/persons/edit/${person.id}'),
-                    cells: [
-                      DataCell(
-                        Text(
-                          ref.watch(nameOrderProvider) == NameOrder.lastFirst
-                              ? person.lastName
-                              : person.firstName,
-                        ),
-                        onTap: () => context.push('/persons/edit/${person.id}'),
-                      ),
-                      DataCell(
-                        Text(
-                          ref.watch(nameOrderProvider) == NameOrder.lastFirst
-                              ? person.firstName
-                              : person.lastName,
-                        ),
-                        onTap: () => context.push('/persons/edit/${person.id}'),
-                      ),
-                      DataCell(_roleBadge(person.congregationRole)),
-                      DataCell(_pioneerBadge(person.pioneerType)),
-                      DataCell(
-                        Icon(
-                          person.isActive ? Icons.check_circle : Icons.cancel,
-                          color: person.isActive ? Colors.green : Colors.red,
-                          size: 18,
-                        ),
-                      ),
-                    ],
-                  );
-                }).toList(),
+    return StickyDataTable(
+      minWidth: 900,
+      sortColumnIndex: _sortColumnIndex,
+      sortAscending: _sortAscending,
+      showCheckboxColumn: true,
+      columnSpacing: 12,
+      horizontalMargin: 12,
+      checkboxHorizontalMargin: 8,
+      columns: [
+        DataColumn2(
+          label: Text(
+            ref.watch(nameOrderProvider) == NameOrder.lastFirst
+                ? 'Last Name'
+                : 'First Name',
+          ),
+          size: ColumnSize.M,
+          minWidth: 130,
+          onSort: _onSort,
+        ),
+        DataColumn2(
+          label: Text(
+            ref.watch(nameOrderProvider) == NameOrder.lastFirst
+                ? 'First Name'
+                : 'Last Name',
+          ),
+          size: ColumnSize.M,
+          minWidth: 130,
+          onSort: _onSort,
+        ),
+        DataColumn2(
+          label: const Text('Other Name'),
+          size: ColumnSize.M,
+          minWidth: 150,
+          onSort: _onSort,
+        ),
+        DataColumn2(
+          label: const Text('Role'),
+          fixedWidth: 160,
+          headingRowAlignment: MainAxisAlignment.center,
+          onSort: _onSort,
+        ),
+        DataColumn2(
+          label: const Text('Pioneer'),
+          fixedWidth: 168,
+          headingRowAlignment: MainAxisAlignment.center,
+          onSort: _onSort,
+        ),
+        DataColumn2(
+          label: const Text('Active'),
+          fixedWidth: 88,
+          headingRowAlignment: MainAxisAlignment.center,
+          onSort: _onSort,
+        ),
+      ],
+      rows: sorted.map((person) {
+        return DataRow(
+          selected: _selectedIds.contains(person.id),
+          onSelectChanged: (selected) {
+            setState(() {
+              if (selected == true) {
+                _selectedIds.add(person.id);
+              } else {
+                _selectedIds.remove(person.id);
+              }
+            });
+          },
+          onLongPress: () => context.push('/persons/edit/${person.id}'),
+          cells: [
+            DataCell(
+              Text(
+                ref.watch(nameOrderProvider) == NameOrder.lastFirst
+                    ? person.lastName
+                    : person.firstName,
+              ),
+              onTap: () => context.push('/persons/edit/${person.id}'),
+            ),
+            DataCell(
+              Text(
+                ref.watch(nameOrderProvider) == NameOrder.lastFirst
+                    ? person.firstName
+                    : person.lastName,
+              ),
+              onTap: () => context.push('/persons/edit/${person.id}'),
+            ),
+            DataCell(
+              Text(
+                person.otherNames.trim(),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              onTap: () => context.push('/persons/edit/${person.id}'),
+            ),
+            DataCell(Center(child: _roleBadge(person.congregationRole))),
+            DataCell(Center(child: _pioneerBadge(person.pioneerType))),
+            DataCell(
+              Center(
+                child: Icon(
+                  person.isActive ? Icons.check_circle : Icons.cancel,
+                  color: person.isActive ? Colors.green : Colors.red,
+                  size: 18,
+                ),
               ),
             ),
-          ),
+          ],
         );
-      },
+      }).toList(),
+    );
+  }
+
+  Widget? _buildCardSubtitle(Person person, List<Widget> badges) {
+    final otherNames = person.otherNames.trim();
+    if (otherNames.isEmpty && badges.isEmpty) return null;
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (otherNames.isNotEmpty)
+            Text(
+              'Other: $otherNames',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+          if (badges.isNotEmpty)
+            Padding(
+              padding: EdgeInsets.only(top: otherNames.isEmpty ? 2 : 6),
+              child: Wrap(spacing: 6, runSpacing: 6, children: badges),
+            ),
+        ],
+      ),
     );
   }
 
@@ -683,6 +783,98 @@ class _PersonDataTableState extends ConsumerState<_PersonDataTable> {
   }
 }
 
+class _MoreFilterMenuItem extends StatelessWidget {
+  final bool checked;
+  final String label;
+
+  const _MoreFilterMenuItem({required this.checked, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SizedBox(
+          width: 40,
+          child: IgnorePointer(
+            child: Checkbox(
+              value: checked,
+              onChanged: (_) {},
+              visualDensity: VisualDensity.compact,
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Flexible(child: Text(label)),
+      ],
+    );
+  }
+}
+
+class _PublisherListFooter extends StatelessWidget {
+  final List<Person> persons;
+
+  const _PublisherListFooter({required this.persons});
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final active = persons.where((person) => person.isActive).length;
+    final inactive = persons.length - active;
+    final elders = persons
+        .where((person) => person.congregationRole == CongregationRole.elder)
+        .length;
+    final servants = persons
+        .where(
+          (person) =>
+              person.congregationRole == CongregationRole.ministerialServant,
+        )
+        .length;
+    final pioneers = persons
+        .where((person) => person.pioneerType != PioneerType.none)
+        .length;
+
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerHighest,
+        border: Border(top: BorderSide(color: colorScheme.outlineVariant)),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      child: DefaultTextStyle(
+        style: Theme.of(context).textTheme.bodySmall!.copyWith(
+          color: colorScheme.onSurfaceVariant,
+          fontWeight: FontWeight.w600,
+        ),
+        child: Wrap(
+          spacing: 18,
+          runSpacing: 6,
+          children: [
+            _FooterMetric(label: 'Rows', value: '${persons.length}'),
+            _FooterMetric(label: 'Active', value: '$active'),
+            _FooterMetric(label: 'Inactive', value: '$inactive'),
+            _FooterMetric(label: 'Elders', value: '$elders'),
+            _FooterMetric(label: 'Servants', value: '$servants'),
+            _FooterMetric(label: 'Pioneers', value: '$pioneers'),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _FooterMetric extends StatelessWidget {
+  final String label;
+  final String value;
+
+  const _FooterMetric({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Text('$label: $value');
+  }
+}
+
 class _PublisherBadge extends StatelessWidget {
   final String label;
   final IconData icon;
@@ -710,11 +902,15 @@ class _PublisherBadge extends StatelessWidget {
         children: [
           Icon(icon, size: 14, color: foregroundColor),
           const SizedBox(width: 4),
-          Text(
-            label,
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: foregroundColor,
-              fontWeight: FontWeight.w700,
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                color: foregroundColor,
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ),
         ],

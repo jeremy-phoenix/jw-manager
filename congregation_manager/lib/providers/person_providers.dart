@@ -11,15 +11,16 @@ final personsProvider = StreamProvider<List<Person>>((ref) {
 });
 
 /// Provides a single person by ID.
-final personProvider =
-    FutureProvider.family<Person, int>((ref, id) {
+final personProvider = FutureProvider.family<Person, int>((ref, id) {
   final db = ref.watch(databaseProvider);
   return db.getPerson(id);
 });
 
 /// Provides phone numbers for a person.
-final phoneNumbersProvider =
-    FutureProvider.family<List<PhoneNumber>, int>((ref, personId) {
+final phoneNumbersProvider = FutureProvider.family<List<PhoneNumber>, int>((
+  ref,
+  personId,
+) {
   final db = ref.watch(databaseProvider);
   return db.getPhoneNumbers(personId);
 });
@@ -27,16 +28,16 @@ final phoneNumbersProvider =
 /// Provides emergency contacts for a person.
 final emergencyContactsProvider =
     FutureProvider.family<List<EmergencyContact>, int>((ref, personId) {
-  final db = ref.watch(databaseProvider);
-  return db.getEmergencyContacts(personId);
-});
+      final db = ref.watch(databaseProvider);
+      return db.getEmergencyContacts(personId);
+    });
 
 /// Provides auxiliary pioneer periods for a person.
 final auxiliaryPioneerPeriodsProvider =
     FutureProvider.family<List<AuxiliaryPioneerPeriod>, int>((ref, personId) {
-  final db = ref.watch(databaseProvider);
-  return db.getAuxiliaryPioneerPeriods(personId);
-});
+      final db = ref.watch(databaseProvider);
+      return db.getAuxiliaryPioneerPeriods(personId);
+    });
 
 /// Search filter for persons list.
 class PersonSearchQueryNotifier extends Notifier<String> {
@@ -47,18 +48,41 @@ class PersonSearchQueryNotifier extends Notifier<String> {
 
 final personSearchQueryProvider =
     NotifierProvider<PersonSearchQueryNotifier, String>(
-        PersonSearchQueryNotifier.new);
+      PersonSearchQueryNotifier.new,
+    );
+
+class ShowInactivePersonsNotifier extends Notifier<bool> {
+  @override
+  bool build() => true;
+
+  void set(bool value) => state = value;
+}
+
+final showInactivePersonsProvider =
+    NotifierProvider<ShowInactivePersonsNotifier, bool>(
+      ShowInactivePersonsNotifier.new,
+    );
 
 /// Filtered persons based on search query.
 final filteredPersonsProvider = Provider<AsyncValue<List<Person>>>((ref) {
   final personsAsync = ref.watch(personsProvider);
-  final query = ref.watch(personSearchQueryProvider).toLowerCase();
+  final query = ref.watch(personSearchQueryProvider).trim().toLowerCase();
+  final showInactivePersons = ref.watch(showInactivePersonsProvider);
 
   return personsAsync.whenData((persons) {
-    if (query.isEmpty) return persons;
-    return persons.where((p) {
-      final fullName = '${p.firstName} ${p.lastName}'.toLowerCase();
-      return fullName.contains(query) ||
+    final activeFiltered = showInactivePersons
+        ? persons
+        : persons.where((person) => person.isActive).toList();
+    if (query.isEmpty) return activeFiltered;
+    return activeFiltered.where((p) {
+      final searchableName = [
+        p.firstName,
+        p.lastName,
+        p.otherNames,
+        '${p.firstName} ${p.lastName}',
+        '${p.lastName}, ${p.firstName}',
+      ].join(' ').toLowerCase();
+      return searchableName.contains(query) ||
           p.address.toLowerCase().contains(query);
     }).toList();
   });

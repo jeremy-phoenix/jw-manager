@@ -1428,6 +1428,7 @@ class AppDatabase extends _$AppDatabase {
     int? year,
     int? month,
     int? congregationId,
+    bool includeInactivePublishers = true,
   }) {
     final query = select(serviceReports);
     if (personId != null) {
@@ -1439,14 +1440,18 @@ class AppDatabase extends _$AppDatabase {
     if (month != null) {
       query.where((s) => s.month.equals(month));
     }
-    if (congregationId != null) {
-      query.where(
-        (s) => s.personId.isInQuery(
-          selectOnly(persons)
-            ..addColumns([persons.id])
-            ..where(persons.congregationId.equals(congregationId)),
-        ),
-      );
+    if (!includeInactivePublishers) {
+      query.where((s) => s.isActive.equals(true));
+    }
+    if (congregationId != null || !includeInactivePublishers) {
+      final personIdQuery = selectOnly(persons)..addColumns([persons.id]);
+      if (congregationId != null) {
+        personIdQuery.where(persons.congregationId.equals(congregationId));
+      }
+      if (!includeInactivePublishers) {
+        personIdQuery.where(persons.isActive.equals(true));
+      }
+      query.where((s) => s.personId.isInQuery(personIdQuery));
     }
     query.orderBy([
       (s) => OrderingTerm.desc(s.year),
@@ -1460,6 +1465,7 @@ class AppDatabase extends _$AppDatabase {
     int? year,
     int? month,
     int? congregationId,
+    bool includeInactivePublishers = true,
   }) {
     final query = select(serviceReports);
     if (personId != null) {
@@ -1471,14 +1477,18 @@ class AppDatabase extends _$AppDatabase {
     if (month != null) {
       query.where((s) => s.month.equals(month));
     }
-    if (congregationId != null) {
-      query.where(
-        (s) => s.personId.isInQuery(
-          selectOnly(persons)
-            ..addColumns([persons.id])
-            ..where(persons.congregationId.equals(congregationId)),
-        ),
-      );
+    if (!includeInactivePublishers) {
+      query.where((s) => s.isActive.equals(true));
+    }
+    if (congregationId != null || !includeInactivePublishers) {
+      final personIdQuery = selectOnly(persons)..addColumns([persons.id]);
+      if (congregationId != null) {
+        personIdQuery.where(persons.congregationId.equals(congregationId));
+      }
+      if (!includeInactivePublishers) {
+        personIdQuery.where(persons.isActive.equals(true));
+      }
+      query.where((s) => s.personId.isInQuery(personIdQuery));
     }
     query.orderBy([
       (s) => OrderingTerm.desc(s.year),
@@ -1540,6 +1550,34 @@ class AppDatabase extends _$AppDatabase {
       );
     }
     return result;
+  }
+
+  Future<bool> updateServiceReportFields(
+    int id,
+    ServiceReportsCompanion fields,
+  ) async {
+    final existing = await (select(
+      serviceReports,
+    )..where((s) => s.id.equals(id))).getSingleOrNull();
+    if (existing == null) return false;
+
+    final updated = await (update(
+      serviceReports,
+    )..where((s) => s.id.equals(id))).write(fields);
+    if (updated == 0) return false;
+
+    final syncId = await _ensureServiceReportSyncId(existing.id);
+    final row = await (select(
+      serviceReports,
+    )..where((s) => s.id.equals(existing.id))).getSingle();
+    await _queueOperationIfEnabled(
+      entityType: 'serviceReport',
+      entitySyncId: syncId,
+      operationType: 'upsert',
+      payload: await _serviceReportPayload(row),
+      baseServerVersion: existing.serverVersion,
+    );
+    return true;
   }
 
   Future<int> deleteServiceReport(int id) async {

@@ -1,5 +1,7 @@
 import 'package:drift/drift.dart' as drift;
+import 'package:data_table_2/data_table_2.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:congregation_manager/data/database.dart';
@@ -12,6 +14,7 @@ import 'package:congregation_manager/providers/service_report_providers.dart';
 import 'package:congregation_manager/reporting/report_service.dart';
 import 'package:congregation_manager/ui/widgets/app_popup_menu_item.dart';
 import 'package:congregation_manager/ui/widgets/search_text_field.dart';
+import 'package:congregation_manager/ui/widgets/sticky_data_table.dart';
 
 class ServiceReportListScreen extends ConsumerWidget {
   const ServiceReportListScreen({super.key});
@@ -22,6 +25,7 @@ class ServiceReportListScreen extends ConsumerWidget {
     final selectedYear = ref.watch(selectedYearProvider);
     final selectedMonth = ref.watch(selectedMonthProvider);
     final showNotSharedOnly = ref.watch(showNotSharedOnlyProvider);
+    final showInactivePublishers = ref.watch(showInactivePublishersProvider);
     final searchQuery = ref.watch(serviceReportSearchQueryProvider);
     final serviceYears = ref.watch(serviceYearsProvider);
 
@@ -100,6 +104,7 @@ class ServiceReportListScreen extends ConsumerWidget {
             selectedYear: selectedYear,
             selectedMonth: selectedMonth,
             showNotSharedOnly: showNotSharedOnly,
+            showInactivePublishers: showInactivePublishers,
             searchQuery: searchQuery,
             serviceYears: serviceYears,
           ),
@@ -130,6 +135,7 @@ class ServiceReportListScreen extends ConsumerWidget {
     required int selectedYear,
     required int selectedMonth,
     required bool showNotSharedOnly,
+    required bool showInactivePublishers,
     required String searchQuery,
     required AsyncValue<List<int>> serviceYears,
   }) {
@@ -145,6 +151,7 @@ class ServiceReportListScreen extends ConsumerWidget {
               selectedYear: selectedYear,
               selectedMonth: selectedMonth,
               showNotSharedOnly: showNotSharedOnly,
+              showInactivePublishers: showInactivePublishers,
               searchQuery: searchQuery,
               serviceYears: serviceYears,
             );
@@ -155,6 +162,7 @@ class ServiceReportListScreen extends ConsumerWidget {
             selectedYear: selectedYear,
             selectedMonth: selectedMonth,
             showNotSharedOnly: showNotSharedOnly,
+            showInactivePublishers: showInactivePublishers,
             searchQuery: searchQuery,
             serviceYears: serviceYears,
           );
@@ -168,6 +176,7 @@ class ServiceReportListScreen extends ConsumerWidget {
     required int selectedYear,
     required int selectedMonth,
     required bool showNotSharedOnly,
+    required bool showInactivePublishers,
     required String searchQuery,
     required AsyncValue<List<int>> serviceYears,
   }) {
@@ -200,7 +209,11 @@ class ServiceReportListScreen extends ConsumerWidget {
           children: [
             Expanded(child: _buildSearchField(ref, searchQuery)),
             const SizedBox(width: 8),
-            _buildNotSharedFilter(ref, showNotSharedOnly, iconOnly: true),
+            _buildMoreFilters(
+              ref,
+              showNotSharedOnly: showNotSharedOnly,
+              showInactivePublishers: showInactivePublishers,
+            ),
           ],
         ),
       ],
@@ -212,6 +225,7 @@ class ServiceReportListScreen extends ConsumerWidget {
     required int selectedYear,
     required int selectedMonth,
     required bool showNotSharedOnly,
+    required bool showInactivePublishers,
     required String searchQuery,
     required AsyncValue<List<int>> serviceYears,
   }) {
@@ -245,7 +259,11 @@ class ServiceReportListScreen extends ConsumerWidget {
           children: [
             Expanded(child: _buildSearchField(ref, searchQuery)),
             const SizedBox(width: 8),
-            _buildNotSharedFilter(ref, showNotSharedOnly),
+            _buildMoreFilters(
+              ref,
+              showNotSharedOnly: showNotSharedOnly,
+              showInactivePublishers: showInactivePublishers,
+            ),
           ],
         ),
       ],
@@ -313,34 +331,44 @@ class ServiceReportListScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildNotSharedFilter(
-    WidgetRef ref,
-    bool showNotSharedOnly, {
-    bool iconOnly = false,
+  Widget _buildMoreFilters(
+    WidgetRef ref, {
+    required bool showNotSharedOnly,
+    required bool showInactivePublishers,
   }) {
-    if (iconOnly) {
-      return IconButton.filledTonal(
-        isSelected: showNotSharedOnly,
-        icon: const Icon(Icons.filter_alt_outlined),
-        selectedIcon: const Icon(Icons.filter_alt),
-        tooltip: 'Show not shared only',
-        style: IconButton.styleFrom(
-          fixedSize: const Size.square(48),
-          minimumSize: const Size.square(48),
-        ),
-        onPressed: () => ref
-            .read(showNotSharedOnlyProvider.notifier)
-            .set(!showNotSharedOnly),
-      );
-    }
+    final hasActiveFilters = showNotSharedOnly || showInactivePublishers;
 
-    return FilterChip(
-      avatar: const Icon(Icons.filter_alt, size: 18),
-      label: const Text('Not Shared'),
-      tooltip: 'Show not shared only',
-      selected: showNotSharedOnly,
-      onSelected: (value) =>
-          ref.read(showNotSharedOnlyProvider.notifier).set(value),
+    return PopupMenuButton<String>(
+      icon: Icon(hasActiveFilters ? Icons.tune : Icons.more_horiz),
+      tooltip: 'More filters',
+      onSelected: (value) {
+        switch (value) {
+          case 'notShared':
+            ref
+                .read(showNotSharedOnlyProvider.notifier)
+                .set(!showNotSharedOnly);
+          case 'inactive':
+            ref
+                .read(showInactivePublishersProvider.notifier)
+                .set(!showInactivePublishers);
+        }
+      },
+      itemBuilder: (context) => [
+        PopupMenuItem(
+          value: 'notShared',
+          child: _MoreFilterMenuItem(
+            checked: showNotSharedOnly,
+            label: 'Not shared only',
+          ),
+        ),
+        PopupMenuItem(
+          value: 'inactive',
+          child: _MoreFilterMenuItem(
+            checked: showInactivePublishers,
+            label: 'Show inactive publishers',
+          ),
+        ),
+      ],
     );
   }
 
@@ -378,6 +406,34 @@ class ServiceReportListScreen extends ConsumerWidget {
 
     ref.read(selectedYearProvider.notifier).set(nextYear);
     ref.read(selectedMonthProvider.notifier).set(nextMonth);
+  }
+}
+
+class _MoreFilterMenuItem extends StatelessWidget {
+  final bool checked;
+  final String label;
+
+  const _MoreFilterMenuItem({required this.checked, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SizedBox(
+          width: 40,
+          child: IgnorePointer(
+            child: Checkbox(
+              value: checked,
+              onChanged: (_) {},
+              visualDensity: VisualDensity.compact,
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Flexible(child: Text(label)),
+      ],
+    );
   }
 }
 
@@ -690,6 +746,7 @@ class _ReportDataTable extends ConsumerStatefulWidget {
 class _ReportDataTableState extends ConsumerState<_ReportDataTable> {
   // Cache of person names by ID
   final Map<int, String> _personNames = {};
+  final Map<int, bool> _personIsActive = {};
   int? _sortColumnIndex;
   bool _sortAscending = true;
 
@@ -709,6 +766,7 @@ class _ReportDataTableState extends ConsumerState<_ReportDataTable> {
     setState(() {
       for (final p in persons) {
         _personNames[p.id] = formatPersonName(p.firstName, p.lastName, order);
+        _personIsActive[p.id] = p.isActive;
       }
     });
   }
@@ -738,6 +796,8 @@ class _ReportDataTableState extends ConsumerState<_ReportDataTable> {
             result = (a.isAuxiliaryPioneer ? 1 : 0).compareTo(
               b.isAuxiliaryPioneer ? 1 : 0,
             );
+          case 6: // Notes/Remarks
+            result = a.note.compareTo(b.note);
           default:
             result = 0;
         }
@@ -750,7 +810,7 @@ class _ReportDataTableState extends ConsumerState<_ReportDataTable> {
     }
 
     final isWide = MediaQuery.of(context).size.width >= 600;
-    return isWide ? _buildDataTable(sorted) : _buildCardList(sorted);
+    return isWide ? _buildDataGrid(sorted) : _buildCardList(sorted);
   }
 
   List<ServiceReport> _filterReports(List<ServiceReport> reports) {
@@ -782,12 +842,13 @@ class _ReportDataTableState extends ConsumerState<_ReportDataTable> {
       itemCount: sorted.length,
       itemBuilder: (context, index) {
         final report = sorted[index];
-        final name = _personNames[report.personId] ?? '...';
+        final name = _displayName(report);
         final monthName = DateFormat.MMMM().format(
           DateTime(report.year, report.month),
         );
 
         return Card(
+          key: ValueKey('service-report-card-${report.id}'),
           margin: const EdgeInsets.symmetric(vertical: 4),
           child: Padding(
             padding: const EdgeInsets.all(12),
@@ -822,6 +883,7 @@ class _ReportDataTableState extends ConsumerState<_ReportDataTable> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Checkbox(
+                          key: ValueKey('service-report-${report.id}-shared'),
                           value: report.sharedInMinistry,
                           onChanged: (v) => _updateReport(
                             report,
@@ -835,6 +897,7 @@ class _ReportDataTableState extends ConsumerState<_ReportDataTable> {
                     SizedBox(
                       width: 80,
                       child: _EditableNumberField(
+                        key: ValueKey('service-report-${report.id}-studies'),
                         value: report.bibleStudies,
                         onChanged: (v) =>
                             _updateReport(report, bibleStudies: v),
@@ -844,6 +907,7 @@ class _ReportDataTableState extends ConsumerState<_ReportDataTable> {
                     SizedBox(
                       width: 80,
                       child: _EditableDoubleField(
+                        key: ValueKey('service-report-${report.id}-hours'),
                         value: report.hours,
                         onChanged: (v) => _updateReport(report, hours: v),
                         label: 'Hours',
@@ -853,6 +917,9 @@ class _ReportDataTableState extends ConsumerState<_ReportDataTable> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Checkbox(
+                          key: ValueKey(
+                            'service-report-${report.id}-auxiliary',
+                          ),
                           value: report.isAuxiliaryPioneer,
                           onChanged: (v) => _updateReport(
                             report,
@@ -862,6 +929,15 @@ class _ReportDataTableState extends ConsumerState<_ReportDataTable> {
                         ),
                         const Text('Aux. Pioneer'),
                       ],
+                    ),
+                    SizedBox(
+                      width: 220,
+                      child: _EditableTextField(
+                        key: ValueKey('service-report-${report.id}-note'),
+                        value: report.note,
+                        onChanged: (v) => _updateReport(report, note: v),
+                        label: 'Notes',
+                      ),
                     ),
                   ],
                 ),
@@ -873,85 +949,149 @@ class _ReportDataTableState extends ConsumerState<_ReportDataTable> {
     );
   }
 
-  Widget _buildDataTable(List<ServiceReport> sorted) {
-    return LayoutBuilder(
-      builder: (context, constraints) => SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: ConstrainedBox(
-          constraints: BoxConstraints(minWidth: constraints.maxWidth),
-          child: SingleChildScrollView(
-            child: DataTable(
-              sortColumnIndex: _sortColumnIndex,
-              sortAscending: _sortAscending,
-              columnSpacing: 24,
-              columns: [
-                DataColumn(label: const Text('Name'), onSort: _onSort),
-                DataColumn(label: const Text('Month'), onSort: _onSort),
-                DataColumn(label: const Text('Shared'), onSort: _onSort),
-                DataColumn(
-                  label: const Text('Studies'),
-                  numeric: true,
-                  onSort: _onSort,
-                ),
-                DataColumn(
-                  label: const Text('Hours'),
-                  numeric: true,
-                  onSort: _onSort,
-                ),
-                DataColumn(label: const Text('Aux. Pioneer'), onSort: _onSort),
-                const DataColumn(label: Text('Actions')),
-              ],
-              rows: sorted.map((report) {
-                final name = _personNames[report.personId] ?? '...';
-                final monthName = DateFormat.MMMM().format(
-                  DateTime(report.year, report.month),
-                );
+  Widget _buildDataGrid(List<ServiceReport> sorted) {
+    return Column(
+      children: [
+        Expanded(child: _buildDataTable(sorted)),
+        _ServiceReportGridFooter(reports: sorted),
+      ],
+    );
+  }
 
-                return DataRow(
-                  cells: [
-                    DataCell(Text(name)),
-                    DataCell(Text('$monthName ${report.year}')),
-                    DataCell(
-                      _EditableCheckbox(
-                        value: report.sharedInMinistry,
-                        onChanged: (v) =>
-                            _updateReport(report, sharedInMinistry: v),
-                      ),
-                    ),
-                    DataCell(
-                      _EditableNumberField(
-                        value: report.bibleStudies,
-                        onChanged: (v) =>
-                            _updateReport(report, bibleStudies: v),
-                      ),
-                    ),
-                    DataCell(
-                      _EditableDoubleField(
-                        value: report.hours,
-                        onChanged: (v) => _updateReport(report, hours: v),
-                      ),
-                    ),
-                    DataCell(
-                      _EditableCheckbox(
-                        value: report.isAuxiliaryPioneer,
-                        onChanged: (v) =>
-                            _updateReport(report, isAuxiliaryPioneer: v),
-                      ),
-                    ),
-                    DataCell(
-                      IconButton(
-                        icon: const Icon(Icons.delete, size: 18),
-                        onPressed: () => _deleteReport(report),
-                      ),
-                    ),
-                  ],
-                );
-              }).toList(),
+  Widget _buildDataTable(List<ServiceReport> sorted) {
+    return StickyDataTable(
+      minWidth: 980,
+      sortColumnIndex: _sortColumnIndex,
+      sortAscending: _sortAscending,
+      columnSpacing: 12,
+      horizontalMargin: 12,
+      columns: [
+        DataColumn2(
+          label: const Text('Name'),
+          size: ColumnSize.L,
+          onSort: _onSort,
+        ),
+        DataColumn2(
+          label: const Text('Month'),
+          fixedWidth: 132,
+          onSort: _onSort,
+        ),
+        DataColumn2(
+          label: const Text('Shared'),
+          fixedWidth: 104,
+          headingRowAlignment: MainAxisAlignment.center,
+          onSort: _onSort,
+        ),
+        DataColumn2(
+          label: const Text('Studies'),
+          fixedWidth: 108,
+          headingRowAlignment: MainAxisAlignment.center,
+          onSort: _onSort,
+        ),
+        DataColumn2(
+          label: const Text('Hours'),
+          fixedWidth: 96,
+          headingRowAlignment: MainAxisAlignment.center,
+          onSort: _onSort,
+        ),
+        DataColumn2(
+          label: const Text('Aux.'),
+          tooltip: 'Auxiliary Pioneer',
+          fixedWidth: 84,
+          headingRowAlignment: MainAxisAlignment.center,
+          onSort: _onSort,
+        ),
+        DataColumn2(
+          label: const Text('Notes'),
+          size: ColumnSize.L,
+          minWidth: 220,
+          headingRowAlignment: MainAxisAlignment.center,
+          onSort: _onSort,
+        ),
+        const DataColumn2(
+          label: Text('Actions'),
+          fixedWidth: 64,
+          headingRowAlignment: MainAxisAlignment.center,
+        ),
+      ],
+      rows: sorted.map(_buildDataRow).toList(),
+    );
+  }
+
+  DataRow _buildDataRow(ServiceReport report) {
+    final monthName = DateFormat.MMMM().format(
+      DateTime(report.year, report.month),
+    );
+
+    return DataRow(
+      key: ValueKey('service-report-row-${report.id}'),
+      cells: [
+        DataCell(Text(_displayName(report))),
+        DataCell(Text('$monthName ${report.year}')),
+        DataCell(
+          Center(
+            child: _EditableCheckbox(
+              key: ValueKey('service-report-${report.id}-shared'),
+              value: report.sharedInMinistry,
+              onChanged: (v) => _updateReport(report, sharedInMinistry: v),
             ),
           ),
         ),
-      ),
+        DataCell(
+          Center(
+            child: _EditableNumberField(
+              key: ValueKey('service-report-${report.id}-studies'),
+              value: report.bibleStudies,
+              onChanged: (v) => _updateReport(report, bibleStudies: v),
+            ),
+          ),
+        ),
+        DataCell(
+          Center(
+            child: _EditableDoubleField(
+              key: ValueKey('service-report-${report.id}-hours'),
+              value: report.hours,
+              onChanged: (v) => _updateReport(report, hours: v),
+            ),
+          ),
+        ),
+        DataCell(
+          Center(
+            child: _EditableCheckbox(
+              key: ValueKey('service-report-${report.id}-auxiliary'),
+              value: report.isAuxiliaryPioneer,
+              onChanged: (v) => _updateReport(report, isAuxiliaryPioneer: v),
+            ),
+          ),
+        ),
+        DataCell(
+          ConstrainedBox(
+            constraints: const BoxConstraints(minWidth: 180),
+            child: _EditableTextField(
+              key: ValueKey('service-report-${report.id}-note'),
+              value: report.note,
+              onChanged: (v) => _updateReport(report, note: v),
+            ),
+          ),
+        ),
+        DataCell(
+          Center(
+            child: IconButton(
+              icon: const Icon(Icons.delete, size: 18),
+              onPressed: () => _deleteReport(report),
+            ),
+          ),
+        ),
+      ],
     );
+  }
+
+  String _displayName(ServiceReport report) {
+    final name = _personNames[report.personId] ?? '...';
+    if (_personIsActive[report.personId] == false || !report.isActive) {
+      return '$name (Inactive)';
+    }
+    return name;
   }
 
   Future<void> _updateReport(
@@ -960,33 +1100,41 @@ class _ReportDataTableState extends ConsumerState<_ReportDataTable> {
     int? bibleStudies,
     double? hours,
     bool? isAuxiliaryPioneer,
+    String? note,
   }) async {
+    if (sharedInMinistry == null &&
+        bibleStudies == null &&
+        hours == null &&
+        isAuxiliaryPioneer == null &&
+        note == null) {
+      return;
+    }
+
     final db = ref.read(databaseProvider);
-    await db.updateServiceReport(
+    await db.updateServiceReportFields(
+      report.id,
       ServiceReportsCompanion(
-        id: drift.Value(report.id),
-        year: drift.Value(report.year),
-        month: drift.Value(report.month),
-        personId: drift.Value(report.personId),
-        sharedInMinistry: drift.Value(
-          sharedInMinistry ?? report.sharedInMinistry,
-        ),
-        bibleStudies: drift.Value(bibleStudies ?? report.bibleStudies),
-        hours: drift.Value(hours ?? report.hours),
-        isAuxiliaryPioneer: drift.Value(
-          isAuxiliaryPioneer ?? report.isAuxiliaryPioneer,
-        ),
-        isActive: drift.Value(report.isActive),
-        note: drift.Value(report.note),
+        sharedInMinistry: sharedInMinistry == null
+            ? const drift.Value.absent()
+            : drift.Value(sharedInMinistry),
+        bibleStudies: bibleStudies == null
+            ? const drift.Value.absent()
+            : drift.Value(bibleStudies),
+        hours: hours == null ? const drift.Value.absent() : drift.Value(hours),
+        isAuxiliaryPioneer: isAuxiliaryPioneer == null
+            ? const drift.Value.absent()
+            : drift.Value(isAuxiliaryPioneer),
+        note: note == null ? const drift.Value.absent() : drift.Value(note),
       ),
     );
-    ref.invalidate(serviceReportsProvider);
+    // No ref.invalidate needed: serviceReportsProvider wraps a Drift
+    // `watch()` stream that re-emits automatically when the underlying
+    // table changes.
   }
 
   Future<void> _deleteReport(ServiceReport report) async {
     final db = ref.read(databaseProvider);
     await db.deleteServiceReport(report.id);
-    ref.invalidate(serviceReportsProvider);
   }
 
   void _onSort(int columnIndex, bool ascending) {
@@ -994,6 +1142,73 @@ class _ReportDataTableState extends ConsumerState<_ReportDataTable> {
       _sortColumnIndex = columnIndex;
       _sortAscending = ascending;
     });
+  }
+}
+
+class _ServiceReportGridFooter extends StatelessWidget {
+  final List<ServiceReport> reports;
+
+  const _ServiceReportGridFooter({required this.reports});
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final shared = reports.where((report) => report.sharedInMinistry).length;
+    final studies = reports.fold<int>(
+      0,
+      (total, report) => total + report.bibleStudies,
+    );
+    final hours = reports.fold<double>(
+      0,
+      (total, report) => total + report.hours,
+    );
+
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerHighest,
+        border: Border(top: BorderSide(color: colorScheme.outlineVariant)),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      child: DefaultTextStyle(
+        style: Theme.of(context).textTheme.bodySmall!.copyWith(
+          color: colorScheme.onSurfaceVariant,
+          fontWeight: FontWeight.w600,
+        ),
+        child: Wrap(
+          spacing: 18,
+          runSpacing: 6,
+          children: [
+            _FooterMetric(label: 'Rows', value: '${reports.length}'),
+            _FooterMetric(label: 'Shared', value: '$shared'),
+            _FooterMetric(
+              label: 'Not shared',
+              value: '${reports.length - shared}',
+            ),
+            _FooterMetric(label: 'Studies', value: '$studies'),
+            _FooterMetric(label: 'Hours', value: _formatHours(hours)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _formatHours(double hours) {
+    return hours == hours.truncateToDouble()
+        ? '${hours.toInt()}'
+        : hours.toStringAsFixed(1);
+  }
+}
+
+class _FooterMetric extends StatelessWidget {
+  final String label;
+  final String value;
+
+  const _FooterMetric({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Text('$label: $value');
   }
 }
 
@@ -1005,7 +1220,11 @@ class _EditableCheckbox extends StatelessWidget {
   final bool value;
   final ValueChanged<bool> onChanged;
 
-  const _EditableCheckbox({required this.value, required this.onChanged});
+  const _EditableCheckbox({
+    super.key,
+    required this.value,
+    required this.onChanged,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1019,6 +1238,7 @@ class _EditableNumberField extends StatefulWidget {
   final String? label;
 
   const _EditableNumberField({
+    super.key,
     required this.value,
     required this.onChanged,
     this.label,
@@ -1030,26 +1250,44 @@ class _EditableNumberField extends StatefulWidget {
 
 class _EditableNumberFieldState extends State<_EditableNumberField> {
   late TextEditingController _controller;
-  bool _editing = false;
+  late FocusNode _focusNode;
+  late int _lastCommittedValue;
 
   @override
   void initState() {
     super.initState();
+    _lastCommittedValue = widget.value;
     _controller = TextEditingController(text: '${widget.value}');
+    _focusNode = FocusNode()..addListener(_handleFocusChange);
   }
 
   @override
   void didUpdateWidget(covariant _EditableNumberField oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (!_editing) {
+    if (!_focusNode.hasFocus) {
+      _lastCommittedValue = widget.value;
       _controller.text = '${widget.value}';
     }
   }
 
   @override
   void dispose() {
+    _focusNode.removeListener(_handleFocusChange);
+    _focusNode.dispose();
     _controller.dispose();
     super.dispose();
+  }
+
+  void _handleFocusChange() {
+    if (!_focusNode.hasFocus) _commitCurrentValue();
+  }
+
+  void _commitCurrentValue() {
+    final parsed = int.tryParse(_controller.text);
+    if (parsed == null || parsed == _lastCommittedValue) return;
+
+    _lastCommittedValue = parsed;
+    widget.onChanged(parsed);
   }
 
   @override
@@ -1058,8 +1296,10 @@ class _EditableNumberFieldState extends State<_EditableNumberField> {
       width: 60,
       child: TextField(
         controller: _controller,
+        focusNode: _focusNode,
         keyboardType: TextInputType.number,
         textAlign: TextAlign.center,
+        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
         decoration: InputDecoration(
           isDense: true,
           border: widget.label != null
@@ -1067,19 +1307,8 @@ class _EditableNumberFieldState extends State<_EditableNumberField> {
               : InputBorder.none,
           labelText: widget.label,
         ),
-        onTap: () => _editing = true,
-        onSubmitted: (v) {
-          _editing = false;
-          final parsed = int.tryParse(v);
-          if (parsed != null) widget.onChanged(parsed);
-        },
-        onTapOutside: (_) {
-          _editing = false;
-          final parsed = int.tryParse(_controller.text);
-          if (parsed != null && parsed != widget.value) {
-            widget.onChanged(parsed);
-          }
-        },
+        onSubmitted: (_) => _commitCurrentValue(),
+        onTapOutside: (_) => _focusNode.unfocus(),
       ),
     );
   }
@@ -1091,6 +1320,7 @@ class _EditableDoubleField extends StatefulWidget {
   final String? label;
 
   const _EditableDoubleField({
+    super.key,
     required this.value,
     required this.onChanged,
     this.label,
@@ -1102,22 +1332,26 @@ class _EditableDoubleField extends StatefulWidget {
 
 class _EditableDoubleFieldState extends State<_EditableDoubleField> {
   late TextEditingController _controller;
-  bool _editing = false;
+  late FocusNode _focusNode;
+  late double _lastCommittedValue;
 
   @override
   void initState() {
     super.initState();
+    _lastCommittedValue = widget.value;
     _controller = TextEditingController(
       text: widget.value == widget.value.truncateToDouble()
           ? '${widget.value.toInt()}'
           : '${widget.value}',
     );
+    _focusNode = FocusNode()..addListener(_handleFocusChange);
   }
 
   @override
   void didUpdateWidget(covariant _EditableDoubleField oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (!_editing) {
+    if (!_focusNode.hasFocus) {
+      _lastCommittedValue = widget.value;
       _controller.text = widget.value == widget.value.truncateToDouble()
           ? '${widget.value.toInt()}'
           : '${widget.value}';
@@ -1126,8 +1360,22 @@ class _EditableDoubleFieldState extends State<_EditableDoubleField> {
 
   @override
   void dispose() {
+    _focusNode.removeListener(_handleFocusChange);
+    _focusNode.dispose();
     _controller.dispose();
     super.dispose();
+  }
+
+  void _handleFocusChange() {
+    if (!_focusNode.hasFocus) _commitCurrentValue();
+  }
+
+  void _commitCurrentValue() {
+    final parsed = double.tryParse(_controller.text);
+    if (parsed == null || parsed == _lastCommittedValue) return;
+
+    _lastCommittedValue = parsed;
+    widget.onChanged(parsed);
   }
 
   @override
@@ -1136,8 +1384,10 @@ class _EditableDoubleFieldState extends State<_EditableDoubleField> {
       width: 60,
       child: TextField(
         controller: _controller,
+        focusNode: _focusNode,
         keyboardType: const TextInputType.numberWithOptions(decimal: true),
         textAlign: TextAlign.center,
+        inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
         decoration: InputDecoration(
           isDense: true,
           border: widget.label != null
@@ -1145,20 +1395,86 @@ class _EditableDoubleFieldState extends State<_EditableDoubleField> {
               : InputBorder.none,
           labelText: widget.label,
         ),
-        onTap: () => _editing = true,
-        onSubmitted: (v) {
-          _editing = false;
-          final parsed = double.tryParse(v);
-          if (parsed != null) widget.onChanged(parsed);
-        },
-        onTapOutside: (_) {
-          _editing = false;
-          final parsed = double.tryParse(_controller.text);
-          if (parsed != null && parsed != widget.value) {
-            widget.onChanged(parsed);
-          }
-        },
+        onSubmitted: (_) => _commitCurrentValue(),
+        onTapOutside: (_) => _focusNode.unfocus(),
       ),
+    );
+  }
+}
+
+class _EditableTextField extends StatefulWidget {
+  final String value;
+  final ValueChanged<String> onChanged;
+  final String? label;
+
+  const _EditableTextField({
+    super.key,
+    required this.value,
+    required this.onChanged,
+    this.label,
+  });
+
+  @override
+  State<_EditableTextField> createState() => _EditableTextFieldState();
+}
+
+class _EditableTextFieldState extends State<_EditableTextField> {
+  late TextEditingController _controller;
+  late FocusNode _focusNode;
+  late String _lastCommittedValue;
+
+  @override
+  void initState() {
+    super.initState();
+    _lastCommittedValue = widget.value;
+    _controller = TextEditingController(text: widget.value);
+    _focusNode = FocusNode()..addListener(_handleFocusChange);
+  }
+
+  @override
+  void didUpdateWidget(covariant _EditableTextField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!_focusNode.hasFocus) {
+      _lastCommittedValue = widget.value;
+      _controller.text = widget.value;
+    }
+  }
+
+  @override
+  void dispose() {
+    _focusNode.removeListener(_handleFocusChange);
+    _focusNode.dispose();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _handleFocusChange() {
+    if (!_focusNode.hasFocus) _commitCurrentValue();
+  }
+
+  void _commitCurrentValue() {
+    final value = _controller.text.trim();
+    if (value == _lastCommittedValue) return;
+
+    _lastCommittedValue = value;
+    widget.onChanged(value);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: _controller,
+      focusNode: _focusNode,
+      textInputAction: TextInputAction.done,
+      decoration: InputDecoration(
+        isDense: true,
+        border: widget.label != null
+            ? const OutlineInputBorder()
+            : InputBorder.none,
+        labelText: widget.label,
+      ),
+      onSubmitted: (_) => _commitCurrentValue(),
+      onTapOutside: (_) => _focusNode.unfocus(),
     );
   }
 }
