@@ -10,6 +10,10 @@ import 'package:congregation_manager/services/export_progress.dart';
 /// Writes publisher data into S-21 PDF forms.
 /// Uses the bundled S-21_E.pdf template and fills form fields via Syncfusion.
 class PublisherRecordWriter {
+  static const _textFieldFontSize = 10.5;
+  static const _minimumTextFieldFontSize = 7.0;
+  static const _textFieldHorizontalPadding = 2.0;
+
   // Field names matching the S-21 form
   static const _nameField = '900_1_Text_SanSerif';
   static const _dobField = '900_2_Text_SanSerif';
@@ -61,16 +65,19 @@ class PublisherRecordWriter {
     required String outputPath,
     bool flatten = false,
     bool onlyUpToPreviousMonth = false,
+    String Function(Person)? nameFormatter,
   }) async {
     final templateBytes = await getTemplateBytes();
     final pdfDoc = sf.PdfDocument(inputBytes: templateBytes);
 
+    final recordNameFormatter = nameFormatter ?? _defaultPersonName;
     _fillPersonFields(
       pdfDoc,
       person,
       serviceYear,
       reports,
       onlyUpToPreviousMonth,
+      recordNameFormatter,
     );
 
     if (flatten) {
@@ -89,19 +96,23 @@ class PublisherRecordWriter {
     required List<ServiceReport> reports,
     required String outputPath,
     bool onlyUpToPreviousMonth = false,
+    String Function(Person)? nameFormatter,
   }) async {
     final bounds = await _getTemplateBounds();
+    final recordNameFormatter = nameFormatter ?? _defaultPersonName;
     final previousBytes = await _fillTemplateToBytes(
       person: person,
       serviceYear: serviceYear - 1,
       reports: reports,
       onlyUpToPreviousMonth: onlyUpToPreviousMonth,
+      nameFormatter: recordNameFormatter,
     );
     final currentBytes = await _fillTemplateToBytes(
       person: person,
       serviceYear: serviceYear,
       reports: reports,
       onlyUpToPreviousMonth: onlyUpToPreviousMonth,
+      nameFormatter: recordNameFormatter,
     );
 
     final previousDoc = sf.PdfDocument(inputBytes: previousBytes);
@@ -233,6 +244,7 @@ class PublisherRecordWriter {
     required int serviceYear,
     required List<ServiceReport> reports,
     bool onlyUpToPreviousMonth = false,
+    required String Function(Person) nameFormatter,
   }) async {
     final templateBytes = await getTemplateBytes();
     final pdfDoc = sf.PdfDocument(inputBytes: templateBytes);
@@ -243,6 +255,7 @@ class PublisherRecordWriter {
       serviceYear,
       reports,
       onlyUpToPreviousMonth,
+      nameFormatter,
     );
     pdfDoc.form.flattenAllFields();
 
@@ -264,6 +277,7 @@ class PublisherRecordWriter {
     Map<int, FieldServiceGroup> groupsById = const {},
     bool twoYearsPerPage = false,
     String Function(Person)? fileNameFormatter,
+    String Function(Person)? nameFormatter,
     ExportProgressCallback? onProgress,
   }) async {
     final errors = <String>[];
@@ -283,6 +297,7 @@ class PublisherRecordWriter {
       return errors;
     }
 
+    final recordNameFormatter = nameFormatter ?? _defaultPersonName;
     for (var i = 0; i < persons.length; i++) {
       final person = persons[i];
       final displayName = '${person.lastName}, ${person.firstName}';
@@ -335,6 +350,7 @@ class PublisherRecordWriter {
             reports: reports,
             outputPath: filePath,
             onlyUpToPreviousMonth: onlyUpToPreviousMonth,
+            nameFormatter: recordNameFormatter,
           );
         } else {
           await writePersonRecord(
@@ -344,6 +360,7 @@ class PublisherRecordWriter {
             outputPath: filePath,
             flatten: flatten,
             onlyUpToPreviousMonth: onlyUpToPreviousMonth,
+            nameFormatter: recordNameFormatter,
           );
         }
       } catch (e) {
@@ -410,10 +427,11 @@ class PublisherRecordWriter {
     int serviceYear,
     List<ServiceReport> reports,
     bool onlyUpToPreviousMonth,
+    String Function(Person) nameFormatter,
   ) {
     final form = pdfDoc.form;
 
-    _setTextField(form, _nameField, '${person.lastName}, ${person.firstName}');
+    _setTextField(form, _nameField, nameFormatter(person));
 
     if (person.birthDate != null) {
       _setTextField(form, _dobField, _formatDate(person.birthDate!));
@@ -524,8 +542,32 @@ class PublisherRecordWriter {
   static void _setTextField(sf.PdfForm form, String name, String value) {
     final field = _findField(form, name);
     if (field is sf.PdfTextBoxField) {
+      field.font = _fontForTextField(field, value);
       field.text = value;
     }
+  }
+
+  static sf.PdfFont _fontForTextField(sf.PdfTextBoxField field, String value) {
+    var font = sf.PdfStandardFont(
+      sf.PdfFontFamily.helvetica,
+      _textFieldFontSize,
+    );
+    final availableWidth = field.bounds.width - _textFieldHorizontalPadding;
+    if (value.isEmpty || availableWidth <= 0) return font;
+
+    final textWidth = font.measureString(value).width;
+    if (textWidth <= 0 || textWidth <= availableWidth) return font;
+
+    final fittedSize = math.max(
+      _minimumTextFieldFontSize,
+      _textFieldFontSize * availableWidth / textWidth,
+    );
+    font = sf.PdfStandardFont(sf.PdfFontFamily.helvetica, fittedSize);
+    return font;
+  }
+
+  static String _defaultPersonName(Person person) {
+    return '${person.lastName}, ${person.firstName}';
   }
 
   static void _setCheckbox(sf.PdfForm form, String name, bool checked) {

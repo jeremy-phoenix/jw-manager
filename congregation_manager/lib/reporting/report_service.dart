@@ -12,6 +12,10 @@ import 'package:congregation_manager/reporting/not_shared_in_ministry_report.dar
 import 'package:congregation_manager/reporting/not_shared_by_group_report.dart';
 import 'package:congregation_manager/reporting/congregation_summary_report.dart';
 import 'package:congregation_manager/reporting/publisher_contact_list_excel_report.dart';
+import 'package:congregation_manager/reporting/service_report_by_group_report.dart';
+import 'package:congregation_manager/reporting/field_service_group_summary_report.dart';
+import 'package:congregation_manager/reporting/pioneer_hours_report.dart';
+import 'package:congregation_manager/reporting/missing_reports_by_group_report.dart';
 import 'package:congregation_manager/services/export_progress.dart';
 import 'package:congregation_manager/services/publisher_record_writer.dart';
 
@@ -170,6 +174,194 @@ class ReportService {
 
     if (!context.mounted) return;
     await _showPreview(context, doc, 'Not Shared in Ministry by Group');
+  }
+
+  // ── Period reports by field service group ─────────
+
+  /// Field Service Reports by Group — full roster with figures and totals.
+  Future<void> previewServiceReportsByGroup(
+    BuildContext context, {
+    required int year,
+    required int month,
+  }) async {
+    final persons = await db.getAllPersons(congregationId: congregationId);
+    final reports = await db.getServiceReports(
+      year: year,
+      month: month,
+      congregationId: congregationId,
+    );
+    final groups = await _loadGroupsById();
+
+    final doc = generateServiceReportByGroupReport(
+      persons: persons,
+      reports: reports,
+      groupsById: groups,
+      year: year,
+      month: month,
+    );
+
+    if (!context.mounted) return;
+    await _showPreview(context, doc, 'Field Service Reports by Group');
+  }
+
+  Future<Uint8List> buildServiceReportsByGroupExcelBytes({
+    required int year,
+    required int month,
+  }) async {
+    final persons = await db.getAllPersons(congregationId: congregationId);
+    final reports = await db.getServiceReports(
+      year: year,
+      month: month,
+      congregationId: congregationId,
+    );
+    final groups = await _loadGroupsById();
+
+    return buildServiceReportByGroupExcel(
+      persons: persons,
+      reports: reports,
+      groupsById: groups,
+      year: year,
+      month: month,
+    );
+  }
+
+  /// Field Service Group Totals — one row per group with monthly totals.
+  Future<void> previewFieldServiceGroupSummary(
+    BuildContext context, {
+    required int year,
+    required int month,
+  }) async {
+    final persons = await db.getAllPersons(congregationId: congregationId);
+    final reports = await db.getServiceReports(
+      year: year,
+      month: month,
+      congregationId: congregationId,
+    );
+    final groups = await _loadGroupsById();
+
+    final doc = generateFieldServiceGroupSummaryReport(
+      persons: persons,
+      reports: reports,
+      groupsById: groups,
+      year: year,
+      month: month,
+    );
+
+    if (!context.mounted) return;
+    await _showPreview(context, doc, 'Field Service Group Totals');
+  }
+
+  Future<Uint8List> buildFieldServiceGroupSummaryExcelBytes({
+    required int year,
+    required int month,
+  }) async {
+    final persons = await db.getAllPersons(congregationId: congregationId);
+    final reports = await db.getServiceReports(
+      year: year,
+      month: month,
+      congregationId: congregationId,
+    );
+    final groups = await _loadGroupsById();
+
+    return buildFieldServiceGroupSummaryExcel(
+      persons: persons,
+      reports: reports,
+      groupsById: groups,
+      year: year,
+      month: month,
+    );
+  }
+
+  /// Pioneer Hours — monthly and service-year-to-date hours per pioneer.
+  Future<void> previewPioneerHours(
+    BuildContext context, {
+    required int year,
+    required int month,
+  }) async {
+    final persons = await db.getAllPersons(congregationId: congregationId);
+    final reports = await db.getServiceReports(
+      year: year,
+      congregationId: congregationId,
+    );
+    final groups = await _loadGroupsById();
+
+    final doc = generatePioneerHoursReport(
+      persons: persons,
+      reports: reports,
+      groupsById: groups,
+      year: year,
+      month: month,
+    );
+
+    if (!context.mounted) return;
+    await _showPreview(context, doc, 'Pioneer Hours');
+  }
+
+  Future<Uint8List> buildPioneerHoursExcelBytes({
+    required int year,
+    required int month,
+  }) async {
+    final persons = await db.getAllPersons(congregationId: congregationId);
+    final reports = await db.getServiceReports(
+      year: year,
+      congregationId: congregationId,
+    );
+    final groups = await _loadGroupsById();
+
+    return buildPioneerHoursExcel(
+      persons: persons,
+      reports: reports,
+      groupsById: groups,
+      year: year,
+      month: month,
+    );
+  }
+
+  /// Missing Reports by Group — active publishers with no report submitted.
+  Future<void> previewMissingReportsByGroup(
+    BuildContext context, {
+    required int year,
+    required int month,
+  }) async {
+    final persons = await db.getAllPersons(congregationId: congregationId);
+    final reports = await db.getServiceReports(
+      year: year,
+      month: month,
+      congregationId: congregationId,
+    );
+    final groups = await _loadGroupsById();
+
+    final doc = generateMissingReportsByGroupReport(
+      persons: persons,
+      reports: reports,
+      groupsById: groups,
+      year: year,
+      month: month,
+    );
+
+    if (!context.mounted) return;
+    await _showPreview(context, doc, 'Missing Reports by Group');
+  }
+
+  Future<Uint8List> buildMissingReportsByGroupExcelBytes({
+    required int year,
+    required int month,
+  }) async {
+    final persons = await db.getAllPersons(congregationId: congregationId);
+    final reports = await db.getServiceReports(
+      year: year,
+      month: month,
+      congregationId: congregationId,
+    );
+    final groups = await _loadGroupsById();
+
+    return buildMissingReportsByGroupExcel(
+      persons: persons,
+      reports: reports,
+      groupsById: groups,
+      year: year,
+      month: month,
+    );
   }
 
   /// Congregation Summary — all active, new inactive, reactivated.
@@ -494,6 +686,10 @@ class ReportService {
       reportsByPerson[p.id] = reports;
     }
 
+    String formatRecordName(Person person) {
+      return _formatRecordNameTemplate(person, fileNameTemplate);
+    }
+
     return PublisherRecordWriter.exportAllPersonRecords(
       persons: active,
       reportsByPerson: reportsByPerson,
@@ -506,16 +702,16 @@ class ReportService {
       twoYearsPerPage: twoYearsPerPage,
       onlyUpToPreviousMonth: onlyUpToPreviousMonth,
       onProgress: onProgress,
-      fileNameFormatter: (person) {
-        return fileNameTemplate
-            .replaceAll('{FirstName}', person.firstName)
-            .replaceAll('{LastName}', person.lastName)
-            .replaceAll(
-              '{FullName}',
-              '${person.lastName}, ${person.firstName}',
-            );
-      },
+      fileNameFormatter: formatRecordName,
+      nameFormatter: formatRecordName,
     );
+  }
+
+  static String _formatRecordNameTemplate(Person person, String template) {
+    return template
+        .replaceAll('{FirstName}', person.firstName)
+        .replaceAll('{LastName}', person.lastName)
+        .replaceAll('{FullName}', '${person.lastName}, ${person.firstName}');
   }
 
   static String _groupSortName(

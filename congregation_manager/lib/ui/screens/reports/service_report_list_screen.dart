@@ -1,5 +1,6 @@
 import 'package:drift/drift.dart' as drift;
 import 'package:data_table_2/data_table_2.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -54,6 +55,26 @@ class ServiceReportListScreen extends ConsumerWidget {
               final year = selectedYear;
               final month = selectedMonth;
               switch (value) {
+                case 'reports_by_group':
+                  svc.previewServiceReportsByGroup(
+                    context,
+                    year: year,
+                    month: month,
+                  );
+                case 'group_totals':
+                  svc.previewFieldServiceGroupSummary(
+                    context,
+                    year: year,
+                    month: month,
+                  );
+                case 'pioneer_hours':
+                  svc.previewPioneerHours(context, year: year, month: month);
+                case 'missing_by_group':
+                  svc.previewMissingReportsByGroup(
+                    context,
+                    year: year,
+                    month: month,
+                  );
                 case 'not_shared':
                   svc.previewNotSharedInMinistry(
                     context,
@@ -72,6 +93,27 @@ class ServiceReportListScreen extends ConsumerWidget {
             },
             itemBuilder: (_) => [
               AppPopupMenuItem(
+                value: 'reports_by_group',
+                icon: Icons.groups,
+                label: 'Reports by Group',
+              ),
+              AppPopupMenuItem(
+                value: 'group_totals',
+                icon: Icons.summarize,
+                label: 'Group Totals Summary',
+              ),
+              AppPopupMenuItem(
+                value: 'pioneer_hours',
+                icon: Icons.star,
+                label: 'Pioneer Hours',
+              ),
+              AppPopupMenuItem(
+                value: 'missing_by_group',
+                icon: Icons.report_off,
+                label: 'Missing Reports by Group',
+              ),
+              PopupMenuDivider(),
+              AppPopupMenuItem(
                 value: 'not_shared',
                 icon: Icons.person_off,
                 label: 'Not Shared in Ministry',
@@ -87,6 +129,79 @@ class ServiceReportListScreen extends ConsumerWidget {
                 icon: Icons.delete_outline,
                 label: 'Delete Reports...',
                 color: Colors.red,
+              ),
+            ],
+          ),
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.table_chart),
+            tooltip: 'Export Excel',
+            onSelected: (value) {
+              final svc = ReportService(
+                ref.read(databaseProvider),
+                congregationId: ref.read(currentCongregationIdProvider),
+              );
+              final year = selectedYear;
+              final month = selectedMonth;
+              final suffix = _periodFileSuffix(year, month);
+              switch (value) {
+                case 'reports_by_group':
+                  _exportExcelReport(
+                    context,
+                    build: () => svc.buildServiceReportsByGroupExcelBytes(
+                      year: year,
+                      month: month,
+                    ),
+                    fileName: 'Reports_by_Group_$suffix.xlsx',
+                  );
+                case 'group_totals':
+                  _exportExcelReport(
+                    context,
+                    build: () => svc.buildFieldServiceGroupSummaryExcelBytes(
+                      year: year,
+                      month: month,
+                    ),
+                    fileName: 'Group_Totals_$suffix.xlsx',
+                  );
+                case 'pioneer_hours':
+                  _exportExcelReport(
+                    context,
+                    build: () => svc.buildPioneerHoursExcelBytes(
+                      year: year,
+                      month: month,
+                    ),
+                    fileName: 'Pioneer_Hours_$suffix.xlsx',
+                  );
+                case 'missing_by_group':
+                  _exportExcelReport(
+                    context,
+                    build: () => svc.buildMissingReportsByGroupExcelBytes(
+                      year: year,
+                      month: month,
+                    ),
+                    fileName: 'Missing_Reports_$suffix.xlsx',
+                  );
+              }
+            },
+            itemBuilder: (_) => [
+              AppPopupMenuItem(
+                value: 'reports_by_group',
+                icon: Icons.groups,
+                label: 'Reports by Group',
+              ),
+              AppPopupMenuItem(
+                value: 'group_totals',
+                icon: Icons.summarize,
+                label: 'Group Totals Summary',
+              ),
+              AppPopupMenuItem(
+                value: 'pioneer_hours',
+                icon: Icons.star,
+                label: 'Pioneer Hours',
+              ),
+              AppPopupMenuItem(
+                value: 'missing_by_group',
+                icon: Icons.report_off,
+                label: 'Missing Reports by Group',
               ),
             ],
           ),
@@ -484,6 +599,40 @@ class _DisabledFilterField extends StatelessWidget {
       ),
       child: Text(value, maxLines: 1, overflow: TextOverflow.ellipsis),
     );
+  }
+}
+
+String _periodFileSuffix(int year, int month) {
+  return '${year}_${month.toString().padLeft(2, '0')}';
+}
+
+Future<void> _exportExcelReport(
+  BuildContext context, {
+  required Future<Uint8List> Function() build,
+  required String fileName,
+}) async {
+  try {
+    final bytes = await build();
+    final filePath = await FilePicker.saveFile(
+      dialogTitle: 'Export Excel',
+      fileName: fileName,
+      type: FileType.custom,
+      allowedExtensions: ['xlsx'],
+      bytes: bytes,
+    );
+    if (filePath == null) return;
+
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Excel report exported successfully.')),
+      );
+    }
+  } catch (e) {
+    if (context.mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Export failed: $e')));
+    }
   }
 }
 

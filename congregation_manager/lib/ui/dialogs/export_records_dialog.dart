@@ -155,11 +155,11 @@ class _ExportRecordsDialogState extends State<ExportRecordsDialog> {
             ),
             const SizedBox(height: 12),
 
-            // File name template
+            // Record name template
             TextField(
               controller: _templateController,
               decoration: const InputDecoration(
-                labelText: 'File name template',
+                labelText: 'Record name template',
                 border: OutlineInputBorder(),
                 helperText: '{FirstName}, {LastName}, {FullName}',
               ),
