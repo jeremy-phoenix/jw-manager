@@ -1,0 +1,49 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="128" y1="72" x2="896" y2="952" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#4F46E5"/>
+      <stop offset="0.52" stop-color="#3730A3"/>
+      <stop offset="1" stop-color="#0F172A"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(688 272) rotate(132) scale(650)">
+      <stop offset="0" stop-color="#22D3EE" stop-opacity="0.34"/>
+      <stop offset="0.42" stop-color="#38BDF8" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#1E1B4B" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="card" x1="396" y1="352" x2="660" y2="744" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#E0F2FE"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="424" y1="552" x2="604" y2="708" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#22D3EE"/>
+      <stop offset="1" stop-color="#06B6D4"/>
+    </linearGradient>
+    <filter id="softShadow" x="250" y="210" width="524" height="610" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="28" stdDeviation="34" flood-color="#020617" flood-opacity="0.34"/>
+    </filter>
+    <filter id="nodeShadow" x="220" y="148" width="584" height="280" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="16" stdDeviation="18" flood-color="#020617" flood-opacity="0.24"/>
+    </filter>
+  </defs>
+
+  <rect width="1024" height="1024" fill="url(#bg)"/>
+  <rect width="1024" height="1024" fill="url(#glow)"/>
+  <circle cx="222" cy="192" r="278" fill="#FFFFFF" opacity="0.05"/>
+  <circle cx="826" cy="858" r="334" fill="#22D3EE" opacity="0.06"/>
+
+  <g filter="url(#nodeShadow)">
+    <path d="M333 349C384 285 443 254 512 254C581 254 640 285 691 349" stroke="#F8FAFC" stroke-width="34" stroke-linecap="round"/>
+    <path d="M333 349C384 285 443 254 512 254C581 254 640 285 691 349" stroke="#67E8F9" stroke-width="12" stroke-linecap="round" opacity="0.75"/>
+    <circle cx="512" cy="244" r="62" fill="#F8FAFC"/>
+    <circle cx="319" cy="365" r="54" fill="#F8FAFC"/>
+    <circle cx="705" cy="365" r="54" fill="#F8FAFC"/>
+  </g>
+
+  <g filter="url(#softShadow)">
+    <rect x="350" y="392" width="324" height="346" rx="82" fill="url(#card)"/>
+    <rect x="402" y="466" width="220" height="34" rx="17" fill="#312E81" opacity="0.2"/>
+    <rect x="402" y="530" width="162" height="30" rx="15" fill="#312E81" opacity="0.14"/>
+    <circle cx="512" cy="632" r="88" fill="url(#accent)"/>
+    <path d="M472 631L503 662L562 594" stroke="#FFFFFF" stroke-width="38" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>
