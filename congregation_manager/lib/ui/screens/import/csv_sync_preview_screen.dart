@@ -361,6 +361,7 @@ class _CsvSyncPreviewScreenState extends ConsumerState<CsvSyncPreviewScreen> {
               firstName: Value(person.firstName),
               lastName: Value(person.lastName),
               address: Value(update.newAddress ?? ''),
+              email: Value(person.email),
             ),
           );
         }
@@ -394,6 +395,7 @@ class _CsvSyncPreviewScreenState extends ConsumerState<CsvSyncPreviewScreen> {
               firstName: Value(person.firstName),
               lastName: Value(person.lastName),
               address: Value(csvRecord.address ?? ''),
+              email: Value(person.email),
             ),
           );
         }

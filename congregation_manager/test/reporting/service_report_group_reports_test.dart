@@ -1,3 +1,4 @@
+import 'package:excel/excel.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:congregation_manager/data/database.dart';
 import 'package:congregation_manager/data/enums.dart';
@@ -29,7 +30,9 @@ Person _person({
     congregationRole: CongregationRole.none,
     pioneerType: pioneerType,
     address: '',
+    email: '',
     isActive: isActive,
+    recordStatus: PersonRecordStatus.current,
     congregationId: 1,
     fieldServiceGroupId: fieldServiceGroupId,
     serverVersion: 0,
@@ -175,8 +178,32 @@ void main() {
       groupsById: groups,
       year: 2026,
       month: 1,
+      congregation: Congregation(
+        id: 1,
+        name: 'Riverside',
+        number: '12345',
+        city: '',
+        circuitNumber: '',
+        circuitOverseerName: '',
+        circuitOverseerSpouseName: '',
+        circuitOverseerPhone: '',
+        circuitOverseerEmail: '',
+        circuitOverseerAddress: '',
+        serverVersion: 0,
+        createdAt: _now,
+        updatedAt: _now,
+      ),
     );
     expect(xlsx, isNotEmpty);
+
+    // Title + congregation line + spacer -> first group section lands on row 3.
+    final sheet = Excel.decodeBytes(xlsx)['Reports by Group'];
+    String? cellText(int col, int row) => sheet
+        .cell(CellIndex.indexByColumnRow(columnIndex: col, rowIndex: row))
+        .value
+        ?.toString();
+    expect(cellText(0, 1), contains('Riverside Congregation'));
+    expect(cellText(0, 3), startsWith('Group A'));
   });
 
   test('group summary PDF and Excel generate bytes', () async {

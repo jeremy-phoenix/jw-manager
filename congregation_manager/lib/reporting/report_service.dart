@@ -58,6 +58,9 @@ class ReportService {
     return {for (final p in persons) p.id: p};
   }
 
+  Future<Congregation?> _loadCongregation() async =>
+      congregationId == null ? null : await db.getCongregation(congregationId!);
+
   // ── Report generators ────────────────────────────
 
   /// Publisher Directory — landscape, with phones and groups.
@@ -70,6 +73,7 @@ class ReportService {
       persons: persons,
       phonesByPerson: phones,
       groupsById: groups,
+      congregation: await _loadCongregation(),
     );
 
     if (!context.mounted) return;
@@ -84,6 +88,7 @@ class ReportService {
     final doc = generatePublisherListReport(
       persons: persons,
       groupsById: groups,
+      congregation: await _loadCongregation(),
     );
 
     if (!context.mounted) return;
@@ -100,6 +105,7 @@ class ReportService {
       persons: persons,
       phonesByPerson: phones,
       groupsById: groups,
+      congregation: await _loadCongregation(),
     );
 
     if (!context.mounted) return;
@@ -116,6 +122,7 @@ class ReportService {
       persons: persons,
       phonesByPerson: phones,
       emergencyContactsByPerson: ecs,
+      congregation: await _loadCongregation(),
     );
 
     if (!context.mounted) return;
@@ -143,6 +150,7 @@ class ReportService {
       groupsById: groups,
       year: year,
       month: month,
+      congregation: await _loadCongregation(),
     );
 
     if (!context.mounted) return;
@@ -170,6 +178,7 @@ class ReportService {
       groupsById: groups,
       year: year,
       month: month,
+      congregation: await _loadCongregation(),
     );
 
     if (!context.mounted) return;
@@ -198,6 +207,7 @@ class ReportService {
       groupsById: groups,
       year: year,
       month: month,
+      congregation: await _loadCongregation(),
     );
 
     if (!context.mounted) return;
@@ -222,6 +232,7 @@ class ReportService {
       groupsById: groups,
       year: year,
       month: month,
+      congregation: await _loadCongregation(),
     );
   }
 
@@ -245,6 +256,7 @@ class ReportService {
       groupsById: groups,
       year: year,
       month: month,
+      congregation: await _loadCongregation(),
     );
 
     if (!context.mounted) return;
@@ -269,6 +281,7 @@ class ReportService {
       groupsById: groups,
       year: year,
       month: month,
+      congregation: await _loadCongregation(),
     );
   }
 
@@ -291,6 +304,7 @@ class ReportService {
       groupsById: groups,
       year: year,
       month: month,
+      congregation: await _loadCongregation(),
     );
 
     if (!context.mounted) return;
@@ -314,6 +328,7 @@ class ReportService {
       groupsById: groups,
       year: year,
       month: month,
+      congregation: await _loadCongregation(),
     );
   }
 
@@ -337,6 +352,7 @@ class ReportService {
       groupsById: groups,
       year: year,
       month: month,
+      congregation: await _loadCongregation(),
     );
 
     if (!context.mounted) return;
@@ -361,6 +377,7 @@ class ReportService {
       groupsById: groups,
       year: year,
       month: month,
+      congregation: await _loadCongregation(),
     );
   }
 
@@ -372,6 +389,7 @@ class ReportService {
       allActive: summary.allActive,
       newInactive: summary.newInactive,
       reactivated: summary.reactivated,
+      congregation: await _loadCongregation(),
     );
 
     if (!context.mounted) return;
@@ -480,16 +498,21 @@ class ReportService {
     final dir = Directory(dirPath);
     if (!await dir.exists()) await dir.create(recursive: true);
 
+    const totalReports = 5;
     onProgress?.call(
-      const ExportProgress(current: 0, total: 0, message: 'Preparing reports'),
+      const ExportProgress(
+        current: 0,
+        total: totalReports,
+        message: 'Preparing reports',
+      ),
     );
 
     final persons = await db.getAllPersons(congregationId: congregationId);
     final phones = await _loadAllPhones();
     final groups = await _loadGroupsById();
     final ecs = await _loadAllEmergencyContacts();
+    final congregation = await _loadCongregation();
 
-    const totalReports = 5;
     var completed = 0;
 
     // Publisher Directory
@@ -504,6 +527,7 @@ class ReportService {
       persons: persons,
       phonesByPerson: phones,
       groupsById: groups,
+      congregation: congregation,
     );
     await File(
       '$dirPath/Publisher_Directory.pdf',
@@ -528,6 +552,7 @@ class ReportService {
     final listDoc = generatePublisherListReport(
       persons: persons,
       groupsById: groups,
+      congregation: congregation,
     );
     await File(
       '$dirPath/Publisher_List.pdf',
@@ -553,6 +578,7 @@ class ReportService {
       persons: persons,
       phonesByPerson: phones,
       groupsById: groups,
+      congregation: congregation,
     );
     await File(
       '$dirPath/Publisher_Contact_List.pdf',
@@ -578,6 +604,7 @@ class ReportService {
       persons: persons,
       phonesByPerson: phones,
       emergencyContactsByPerson: ecs,
+      congregation: congregation,
     );
     await File(
       '$dirPath/Emergency_Contact_List.pdf',
@@ -603,6 +630,7 @@ class ReportService {
       allActive: summary.allActive,
       newInactive: summary.newInactive,
       reactivated: summary.reactivated,
+      congregation: congregation,
     );
     await File(
       '$dirPath/Congregation_Summary_All_Categories.pdf',
@@ -627,6 +655,7 @@ class ReportService {
       persons: persons,
       phonesByPerson: phones,
       groupsById: groups,
+      congregation: await _loadCongregation(),
     );
 
     return report.buildBytes();

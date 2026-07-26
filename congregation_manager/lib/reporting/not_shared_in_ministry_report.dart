@@ -13,12 +13,11 @@ pw.Document generateNotSharedInMinistryReport({
   required Map<int, FieldServiceGroup> groupsById,
   required int year,
   required int month,
+  Congregation? congregation,
 }) {
   final monthName = DateFormat.MMMM().format(DateTime(year, month));
   final title = 'Not Shared in Ministry';
   final subtitle = '$monthName $year';
-  final generatedAt =
-      'Generated: ${DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now())}';
 
   // Sort by person name
   final sorted = List<ServiceReport>.from(reports)
@@ -41,24 +40,14 @@ pw.Document generateNotSharedInMinistryReport({
       pageFormat: PdfPageFormat.a4,
       margin: const pw.EdgeInsets.all(34),
       maxPages: PdfStyles.maxPages,
-      header: (context) => pw.Column(
-        children: [
-          pw.Text(title, style: PdfStyles.title(null)),
-          pw.SizedBox(height: 4),
-          pw.Text(
-            subtitle,
-            style: pw.TextStyle(fontSize: 12, color: PdfStyles.footerColor),
-          ),
-          pw.SizedBox(height: 10),
-        ],
+      header: (context) => PdfStyles.reportTitleBlock(
+        title: title,
+        subtitle: subtitle,
+        congregation: congregation,
       ),
       footer: (context) => pw.Row(
         mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
         children: [
-          pw.Text(
-            generatedAt,
-            style: pw.TextStyle(fontSize: 8, color: PdfStyles.footerColor),
-          ),
           pw.Text(
             'Page ${context.pageNumber} / ${context.pagesCount}',
             style: pw.TextStyle(fontSize: 8, color: PdfStyles.footerColor),

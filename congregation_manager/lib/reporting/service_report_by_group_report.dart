@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:congregation_manager/data/database.dart';
+import 'package:congregation_manager/reporting/excel_report_header.dart';
 import 'package:congregation_manager/reporting/pdf_styles.dart';
 import 'package:congregation_manager/reporting/service_report_group_data.dart';
 
@@ -19,11 +20,10 @@ pw.Document generateServiceReportByGroupReport({
   required Map<int, FieldServiceGroup> groupsById,
   required int year,
   required int month,
+  Congregation? congregation,
 }) {
   final monthName = DateFormat.MMMM().format(DateTime(year, month));
   final subtitle = '$monthName $year';
-  final generatedAt =
-      'Generated: ${DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now())}';
 
   final buckets = buildServiceGroupBuckets(
     persons: persons,
@@ -43,26 +43,12 @@ pw.Document generateServiceReportByGroupReport({
       pageFormat: PdfPageFormat.a4,
       margin: const pw.EdgeInsets.all(34),
       maxPages: PdfStyles.maxPages,
-      header: (context) => pw.Column(
-        children: [
-          pw.Text('Field Service Reports', style: PdfStyles.title(null)),
-          pw.SizedBox(height: 4),
-          pw.Text(
-            subtitle,
-            style: pw.TextStyle(fontSize: 12, color: PdfStyles.footerColor),
-          ),
-          pw.Text(
-            'Grouped by Field Service Group',
-            style: pw.TextStyle(
-              fontSize: 10,
-              fontStyle: pw.FontStyle.italic,
-              color: PdfStyles.footerColor,
-            ),
-          ),
-          pw.SizedBox(height: 15),
-        ],
+      header: (context) => PdfStyles.reportTitleBlock(
+        title: 'Field Service Reports',
+        subtitle: '$subtitle — Grouped by Field Service Group',
+        congregation: congregation,
       ),
-      footer: (context) => PdfStyles.pageFooter(context, leftText: generatedAt),
+      footer: (context) => PdfStyles.pageFooter(context),
       build: (context) => [
         for (final bucket in buckets) ..._groupSection(bucket),
         pw.SizedBox(height: 20),
@@ -205,6 +191,7 @@ Uint8List buildServiceReportByGroupExcel({
   required Map<int, FieldServiceGroup> groupsById,
   required int year,
   required int month,
+  Congregation? congregation,
 }) {
   final monthName = DateFormat.MMMM().format(DateTime(year, month));
   final subtitle = '$monthName $year';
@@ -230,11 +217,6 @@ Uint8List buildServiceReportByGroupExcel({
     if (style != null) cell.cellStyle = style;
   }
 
-  final titleStyle = CellStyle(
-    bold: true,
-    fontSize: 16,
-    fontColorHex: ExcelColor.fromHexString('#2196F3'),
-  );
   final groupStyle = CellStyle(bold: true, fontSize: 12);
   final headerStyle = CellStyle(
     bold: true,
@@ -243,18 +225,12 @@ Uint8List buildServiceReportByGroupExcel({
   );
   final subtotalStyle = CellStyle(bold: true);
 
-  put(
-    0,
-    0,
-    TextCellValue('Field Service Reports — $subtitle'),
-    style: titleStyle,
+  var row = writeExcelReportHeader(
+    sheet,
+    title: 'Field Service Reports — $subtitle',
+    columnSpan: headers.length,
+    congregation: congregation,
   );
-  sheet.merge(
-    CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: 0),
-    CellIndex.indexByColumnRow(columnIndex: headers.length - 1, rowIndex: 0),
-  );
-
-  var row = 2;
   var totalPublishers = 0;
   var totalReporting = 0;
   var totalStudies = 0;

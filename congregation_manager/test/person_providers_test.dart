@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:congregation_manager/data/database.dart';
+import 'package:congregation_manager/data/enums.dart';
 import 'package:congregation_manager/providers/congregation_providers.dart';
 import 'package:congregation_manager/providers/database_provider.dart';
 import 'package:congregation_manager/ui/screens/persons/person_list_screen.dart';
@@ -111,6 +112,60 @@ void main() {
     expect(find.text('Smith'), findsOneWidget);
     expect(find.text('Jimmy'), findsOneWidget);
     expect(find.text('Rows: 1'), findsOneWidget);
+  });
+
+  testWidgets('selected publisher can be archived with a reason and date', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({});
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1000, 700);
+    addTearDown(() {
+      tester.view.resetDevicePixelRatio();
+      tester.view.resetPhysicalSize();
+    });
+
+    final db = AppDatabase.forTesting(NativeDatabase.memory());
+    addTearDown(db.close);
+    final congregationId = await _insertCongregation(db);
+    final personId = await _insertPerson(
+      db,
+      congregationId,
+      firstName: 'Alice',
+      lastName: 'Archive',
+    );
+    final container = _containerFor(db, congregationId);
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(home: PersonListScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byType(Checkbox).last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Archive'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Archive Publishers'), findsOneWidget);
+    expect(find.text('Transferred out'), findsOneWidget);
+    await tester.tap(
+      find.descendant(
+        of: find.byType(AlertDialog),
+        matching: find.widgetWithText(FilledButton, 'Archive'),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Archive'), findsNothing);
+    expect(find.text('No publishers found.'), findsOneWidget);
+    final person = await db.getPerson(personId);
+    expect(person.recordStatus, PersonRecordStatus.archived);
+    expect(person.archiveReason, PersonArchiveReason.transferredOut);
+    expect(person.archivedAt, isNotNull);
   });
 }
 

@@ -129,6 +129,30 @@ class PersonListScreen extends ConsumerWidget {
               ),
             ],
           ),
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.inventory_2_outlined),
+            tooltip: 'Publisher records',
+            onSelected: (value) {
+              switch (value) {
+                case 'archive':
+                  context.go('/persons/archive');
+                case 'trash':
+                  context.go('/persons/trash');
+              }
+            },
+            itemBuilder: (_) => [
+              AppPopupMenuItem(
+                value: 'archive',
+                icon: Icons.inventory_2_outlined,
+                label: 'Archived Publishers',
+              ),
+              AppPopupMenuItem(
+                value: 'trash',
+                icon: Icons.delete_outline,
+                label: 'Trash',
+              ),
+            ],
+          ),
           IconButton(
             icon: const Icon(Icons.add),
             tooltip: 'Add Person',
@@ -479,11 +503,42 @@ class _PersonDataTableState extends ConsumerState<_PersonDataTable> {
               children: [
                 Text('${_selectedIds.length} selected'),
                 const Spacer(),
-                FilledButton.tonalIcon(
-                  icon: const Icon(Icons.delete),
-                  label: const Text('Delete'),
-                  onPressed: () => _deleteSelected(context),
-                ),
+                if (isWide) ...[
+                  FilledButton.tonalIcon(
+                    icon: const Icon(Icons.inventory_2_outlined),
+                    label: const Text('Archive'),
+                    onPressed: () => _archiveSelected(context),
+                  ),
+                  const SizedBox(width: 8),
+                  FilledButton.tonalIcon(
+                    icon: const Icon(Icons.delete_outline),
+                    label: const Text('Move to Trash'),
+                    onPressed: () => _moveSelectedToTrash(context),
+                  ),
+                ] else
+                  PopupMenuButton<_SelectedPublisherAction>(
+                    tooltip: 'Selected publisher actions',
+                    onSelected: (action) {
+                      switch (action) {
+                        case _SelectedPublisherAction.archive:
+                          _archiveSelected(context);
+                        case _SelectedPublisherAction.moveToTrash:
+                          _moveSelectedToTrash(context);
+                      }
+                    },
+                    itemBuilder: (_) => [
+                      AppPopupMenuItem(
+                        value: _SelectedPublisherAction.archive,
+                        icon: Icons.inventory_2_outlined,
+                        label: 'Archive',
+                      ),
+                      AppPopupMenuItem(
+                        value: _SelectedPublisherAction.moveToTrash,
+                        icon: Icons.delete_outline,
+                        label: 'Move to Trash',
+                      ),
+                    ],
+                  ),
               ],
             ),
           ),
@@ -751,36 +806,169 @@ class _PersonDataTableState extends ConsumerState<_PersonDataTable> {
     });
   }
 
-  Future<void> _deleteSelected(BuildContext context) async {
+  Future<void> _archiveSelected(BuildContext context) async {
+    var selectedReason = PersonArchiveReason.transferredOut;
+    var selectedDate = DateTime.now();
+    final request = await showDialog<_ArchiveRequest>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Archive Publishers'),
+          content: SizedBox(
+            width: 420,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  'Archive ${_selectedIds.length} publisher(s). Their records '
+                  'will be preserved but excluded from current lists, groups, '
+                  'reports, and statistics.',
+                ),
+                const SizedBox(height: 20),
+                DropdownButtonFormField<PersonArchiveReason>(
+                  initialValue: selectedReason,
+                  decoration: const InputDecoration(
+                    labelText: 'Reason',
+                    border: OutlineInputBorder(),
+                  ),
+                  items: PersonArchiveReason.values
+                      .map(
+                        (reason) => DropdownMenuItem(
+                          value: reason,
+                          child: Text(reason.displayName),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (reason) {
+                    if (reason != null) {
+                      setDialogState(() => selectedReason = reason);
+                    }
+                  },
+                ),
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.calendar_today),
+                  label: Text(
+                    'Effective date: '
+                    '${MaterialLocalizations.of(context).formatMediumDate(selectedDate)}',
+                  ),
+                  onPressed: () async {
+                    final picked = await showDatePicker(
+                      context: context,
+                      initialDate: selectedDate,
+                      firstDate: DateTime(1900),
+                      lastDate: DateTime.now(),
+                    );
+                    if (picked != null) {
+                      setDialogState(() => selectedDate = picked);
+                    }
+                  },
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(
+                _ArchiveRequest(
+                  reason: selectedReason,
+                  archivedAt: selectedDate,
+                ),
+              ),
+              child: const Text('Archive'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (request == null || !mounted) return;
+    final ids = _selectedIds.toList();
+    try {
+      final db = ref.read(databaseProvider);
+      for (final id in ids) {
+        await db.archivePerson(
+          id,
+          reason: request.reason,
+          archivedAt: request.archivedAt,
+        );
+      }
+      setState(() => _selectedIds.clear());
+      ref.invalidate(personsProvider);
+      ref.invalidate(archivedPersonsProvider);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('${ids.length} publisher(s) archived.')),
+        );
+      }
+    } catch (error) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Unable to archive publishers: $error')),
+        );
+      }
+    }
+  }
+
+  Future<void> _moveSelectedToTrash(BuildContext context) async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Delete Publishers'),
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Move Publishers to Trash?'),
         content: Text(
-          'Are you sure you want to delete ${_selectedIds.length} publisher(s)?',
+          'Move ${_selectedIds.length} publisher(s) to Trash? Their records '
+          'will be hidden but can be restored later.',
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
+            onPressed: () => Navigator.of(dialogContext).pop(false),
             child: const Text('Cancel'),
           ),
           FilledButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Delete'),
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Move to Trash'),
           ),
         ],
       ),
     );
+    if (confirmed != true || !mounted) return;
 
-    if (confirmed == true && mounted) {
+    final ids = _selectedIds.toList();
+    try {
       final db = ref.read(databaseProvider);
-      for (final id in _selectedIds) {
-        await db.deletePerson(id);
+      for (final id in ids) {
+        await db.movePersonToTrash(id);
       }
       setState(() => _selectedIds.clear());
       ref.invalidate(personsProvider);
+      ref.invalidate(trashedPersonsProvider);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('${ids.length} publisher(s) moved to Trash.')),
+        );
+      }
+    } catch (error) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Unable to move publishers: $error')),
+        );
+      }
     }
   }
+}
+
+enum _SelectedPublisherAction { archive, moveToTrash }
+
+class _ArchiveRequest {
+  const _ArchiveRequest({required this.reason, required this.archivedAt});
+
+  final PersonArchiveReason reason;
+  final DateTime archivedAt;
 }
 
 class _MoreFilterMenuItem extends StatelessWidget {

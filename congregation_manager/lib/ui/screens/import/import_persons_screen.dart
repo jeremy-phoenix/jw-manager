@@ -268,6 +268,7 @@ class _ImportPersonsScreenState extends ConsumerState<ImportPersonsScreen> {
               pioneerType: item.imported.pioneerType != PioneerType.none
                   ? Value(item.imported.pioneerType)
                   : Value(existing.pioneerType),
+              email: Value(existing.email),
             ));
 
             await _importServiceReports(db, personId, item.imported);

@@ -3,17 +3,21 @@ import 'dart:typed_data';
 
 import 'package:excel/excel.dart';
 import 'package:congregation_manager/data/database.dart';
+import 'package:congregation_manager/reporting/excel_report_header.dart';
+import 'package:congregation_manager/reporting/pdf_styles.dart';
 
 /// Generates a Publisher Contact List as an Excel (.xlsx) workbook.
 class PublisherContactListExcelReport {
   final List<Person> persons;
   final Map<int, List<PhoneNumber>> phonesByPerson;
   final Map<int, FieldServiceGroup> groupsById;
+  final Congregation? congregation;
 
   PublisherContactListExcelReport({
     required this.persons,
     required this.phonesByPerson,
     required this.groupsById,
+    this.congregation,
   });
 
   static const _headers = [
@@ -21,6 +25,7 @@ class PublisherContactListExcelReport {
     'Name of Publisher',
     'Address',
     'Phone Number(s)',
+    'Email',
     'Field Service Group',
   ];
 
@@ -30,18 +35,12 @@ class PublisherContactListExcelReport {
     excel.rename(excel.getDefaultSheet()!, sheetName);
     final sheet = excel[sheetName];
 
-    // Title row
-    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: 0))
-      ..value = TextCellValue('Publisher Contact List')
-      ..cellStyle = CellStyle(
-        bold: true,
-        fontSize: 18,
-        fontColorHex: ExcelColor.fromHexString('#2196F3'),
-        horizontalAlign: HorizontalAlign.Center,
-      );
-    sheet.merge(
-      CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: 0),
-      CellIndex.indexByColumnRow(columnIndex: _headers.length - 1, rowIndex: 0),
+    final firstFreeRow = writeExcelReportHeader(
+      sheet,
+      title: 'Publisher Contact List',
+      columnSpan: _headers.length,
+      congregation: congregation,
+      circuitOverseerLine: PdfStyles.circuitOverseerSummary(congregation),
     );
 
     final active = persons.where((p) => p.isActive).toList()
@@ -49,7 +48,7 @@ class PublisherContactListExcelReport {
     final inactive = persons.where((p) => !p.isActive).toList()
       ..sort((a, b) => _fullName(a).compareTo(_fullName(b)));
 
-    var currentRow = 2;
+    var currentRow = firstFreeRow;
     currentRow = _addSection(sheet, 'Active Publishers', active, currentRow);
 
     if (inactive.isNotEmpty) {
@@ -127,6 +126,11 @@ class PublisherContactListExcelReport {
       );
       sheet
           .cell(CellIndex.indexByColumnRow(columnIndex: 4, rowIndex: row))
+          .value = TextCellValue(
+        person.email.isEmpty ? '\u2014' : person.email,
+      );
+      sheet
+          .cell(CellIndex.indexByColumnRow(columnIndex: 5, rowIndex: row))
           .value = TextCellValue(
         groupsById[person.fieldServiceGroupId]?.name ?? '\u2014',
       );

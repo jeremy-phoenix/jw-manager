@@ -107,6 +107,66 @@ class $CongregationsTable extends Congregations
     requiredDuringInsert: false,
     defaultValue: const Constant(''),
   );
+  static const VerificationMeta _circuitOverseerNameMeta =
+      const VerificationMeta('circuitOverseerName');
+  @override
+  late final GeneratedColumn<String> circuitOverseerName =
+      GeneratedColumn<String>(
+        'circuit_overseer_name',
+        aliasedName,
+        false,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(''),
+      );
+  static const VerificationMeta _circuitOverseerSpouseNameMeta =
+      const VerificationMeta('circuitOverseerSpouseName');
+  @override
+  late final GeneratedColumn<String> circuitOverseerSpouseName =
+      GeneratedColumn<String>(
+        'circuit_overseer_spouse_name',
+        aliasedName,
+        false,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(''),
+      );
+  static const VerificationMeta _circuitOverseerPhoneMeta =
+      const VerificationMeta('circuitOverseerPhone');
+  @override
+  late final GeneratedColumn<String> circuitOverseerPhone =
+      GeneratedColumn<String>(
+        'circuit_overseer_phone',
+        aliasedName,
+        false,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(''),
+      );
+  static const VerificationMeta _circuitOverseerEmailMeta =
+      const VerificationMeta('circuitOverseerEmail');
+  @override
+  late final GeneratedColumn<String> circuitOverseerEmail =
+      GeneratedColumn<String>(
+        'circuit_overseer_email',
+        aliasedName,
+        false,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(''),
+      );
+  static const VerificationMeta _circuitOverseerAddressMeta =
+      const VerificationMeta('circuitOverseerAddress');
+  @override
+  late final GeneratedColumn<String> circuitOverseerAddress =
+      GeneratedColumn<String>(
+        'circuit_overseer_address',
+        aliasedName,
+        false,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(''),
+      );
   static const VerificationMeta _createdAtMeta = const VerificationMeta(
     'createdAt',
   );
@@ -142,6 +202,11 @@ class $CongregationsTable extends Congregations
     number,
     city,
     circuitNumber,
+    circuitOverseerName,
+    circuitOverseerSpouseName,
+    circuitOverseerPhone,
+    circuitOverseerEmail,
+    circuitOverseerAddress,
     createdAt,
     updatedAt,
   ];
@@ -217,6 +282,51 @@ class $CongregationsTable extends Congregations
         ),
       );
     }
+    if (data.containsKey('circuit_overseer_name')) {
+      context.handle(
+        _circuitOverseerNameMeta,
+        circuitOverseerName.isAcceptableOrUnknown(
+          data['circuit_overseer_name']!,
+          _circuitOverseerNameMeta,
+        ),
+      );
+    }
+    if (data.containsKey('circuit_overseer_spouse_name')) {
+      context.handle(
+        _circuitOverseerSpouseNameMeta,
+        circuitOverseerSpouseName.isAcceptableOrUnknown(
+          data['circuit_overseer_spouse_name']!,
+          _circuitOverseerSpouseNameMeta,
+        ),
+      );
+    }
+    if (data.containsKey('circuit_overseer_phone')) {
+      context.handle(
+        _circuitOverseerPhoneMeta,
+        circuitOverseerPhone.isAcceptableOrUnknown(
+          data['circuit_overseer_phone']!,
+          _circuitOverseerPhoneMeta,
+        ),
+      );
+    }
+    if (data.containsKey('circuit_overseer_email')) {
+      context.handle(
+        _circuitOverseerEmailMeta,
+        circuitOverseerEmail.isAcceptableOrUnknown(
+          data['circuit_overseer_email']!,
+          _circuitOverseerEmailMeta,
+        ),
+      );
+    }
+    if (data.containsKey('circuit_overseer_address')) {
+      context.handle(
+        _circuitOverseerAddressMeta,
+        circuitOverseerAddress.isAcceptableOrUnknown(
+          data['circuit_overseer_address']!,
+          _circuitOverseerAddressMeta,
+        ),
+      );
+    }
     if (data.containsKey('created_at')) {
       context.handle(
         _createdAtMeta,
@@ -274,6 +384,26 @@ class $CongregationsTable extends Congregations
         DriftSqlType.string,
         data['${effectivePrefix}circuit_number'],
       )!,
+      circuitOverseerName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}circuit_overseer_name'],
+      )!,
+      circuitOverseerSpouseName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}circuit_overseer_spouse_name'],
+      )!,
+      circuitOverseerPhone: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}circuit_overseer_phone'],
+      )!,
+      circuitOverseerEmail: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}circuit_overseer_email'],
+      )!,
+      circuitOverseerAddress: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}circuit_overseer_address'],
+      )!,
       createdAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}created_at'],
@@ -301,6 +431,11 @@ class Congregation extends DataClass implements Insertable<Congregation> {
   final String number;
   final String city;
   final String circuitNumber;
+  final String circuitOverseerName;
+  final String circuitOverseerSpouseName;
+  final String circuitOverseerPhone;
+  final String circuitOverseerEmail;
+  final String circuitOverseerAddress;
   final DateTime createdAt;
   final DateTime updatedAt;
   const Congregation({
@@ -313,6 +448,11 @@ class Congregation extends DataClass implements Insertable<Congregation> {
     required this.number,
     required this.city,
     required this.circuitNumber,
+    required this.circuitOverseerName,
+    required this.circuitOverseerSpouseName,
+    required this.circuitOverseerPhone,
+    required this.circuitOverseerEmail,
+    required this.circuitOverseerAddress,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -334,6 +474,13 @@ class Congregation extends DataClass implements Insertable<Congregation> {
     map['number'] = Variable<String>(number);
     map['city'] = Variable<String>(city);
     map['circuit_number'] = Variable<String>(circuitNumber);
+    map['circuit_overseer_name'] = Variable<String>(circuitOverseerName);
+    map['circuit_overseer_spouse_name'] = Variable<String>(
+      circuitOverseerSpouseName,
+    );
+    map['circuit_overseer_phone'] = Variable<String>(circuitOverseerPhone);
+    map['circuit_overseer_email'] = Variable<String>(circuitOverseerEmail);
+    map['circuit_overseer_address'] = Variable<String>(circuitOverseerAddress);
     map['created_at'] = Variable<DateTime>(createdAt);
     map['updated_at'] = Variable<DateTime>(updatedAt);
     return map;
@@ -356,6 +503,11 @@ class Congregation extends DataClass implements Insertable<Congregation> {
       number: Value(number),
       city: Value(city),
       circuitNumber: Value(circuitNumber),
+      circuitOverseerName: Value(circuitOverseerName),
+      circuitOverseerSpouseName: Value(circuitOverseerSpouseName),
+      circuitOverseerPhone: Value(circuitOverseerPhone),
+      circuitOverseerEmail: Value(circuitOverseerEmail),
+      circuitOverseerAddress: Value(circuitOverseerAddress),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
     );
@@ -376,6 +528,21 @@ class Congregation extends DataClass implements Insertable<Congregation> {
       number: serializer.fromJson<String>(json['number']),
       city: serializer.fromJson<String>(json['city']),
       circuitNumber: serializer.fromJson<String>(json['circuitNumber']),
+      circuitOverseerName: serializer.fromJson<String>(
+        json['circuitOverseerName'],
+      ),
+      circuitOverseerSpouseName: serializer.fromJson<String>(
+        json['circuitOverseerSpouseName'],
+      ),
+      circuitOverseerPhone: serializer.fromJson<String>(
+        json['circuitOverseerPhone'],
+      ),
+      circuitOverseerEmail: serializer.fromJson<String>(
+        json['circuitOverseerEmail'],
+      ),
+      circuitOverseerAddress: serializer.fromJson<String>(
+        json['circuitOverseerAddress'],
+      ),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
     );
@@ -393,6 +560,15 @@ class Congregation extends DataClass implements Insertable<Congregation> {
       'number': serializer.toJson<String>(number),
       'city': serializer.toJson<String>(city),
       'circuitNumber': serializer.toJson<String>(circuitNumber),
+      'circuitOverseerName': serializer.toJson<String>(circuitOverseerName),
+      'circuitOverseerSpouseName': serializer.toJson<String>(
+        circuitOverseerSpouseName,
+      ),
+      'circuitOverseerPhone': serializer.toJson<String>(circuitOverseerPhone),
+      'circuitOverseerEmail': serializer.toJson<String>(circuitOverseerEmail),
+      'circuitOverseerAddress': serializer.toJson<String>(
+        circuitOverseerAddress,
+      ),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
     };
@@ -408,6 +584,11 @@ class Congregation extends DataClass implements Insertable<Congregation> {
     String? number,
     String? city,
     String? circuitNumber,
+    String? circuitOverseerName,
+    String? circuitOverseerSpouseName,
+    String? circuitOverseerPhone,
+    String? circuitOverseerEmail,
+    String? circuitOverseerAddress,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) => Congregation(
@@ -420,6 +601,13 @@ class Congregation extends DataClass implements Insertable<Congregation> {
     number: number ?? this.number,
     city: city ?? this.city,
     circuitNumber: circuitNumber ?? this.circuitNumber,
+    circuitOverseerName: circuitOverseerName ?? this.circuitOverseerName,
+    circuitOverseerSpouseName:
+        circuitOverseerSpouseName ?? this.circuitOverseerSpouseName,
+    circuitOverseerPhone: circuitOverseerPhone ?? this.circuitOverseerPhone,
+    circuitOverseerEmail: circuitOverseerEmail ?? this.circuitOverseerEmail,
+    circuitOverseerAddress:
+        circuitOverseerAddress ?? this.circuitOverseerAddress,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
   );
@@ -440,6 +628,21 @@ class Congregation extends DataClass implements Insertable<Congregation> {
       circuitNumber: data.circuitNumber.present
           ? data.circuitNumber.value
           : this.circuitNumber,
+      circuitOverseerName: data.circuitOverseerName.present
+          ? data.circuitOverseerName.value
+          : this.circuitOverseerName,
+      circuitOverseerSpouseName: data.circuitOverseerSpouseName.present
+          ? data.circuitOverseerSpouseName.value
+          : this.circuitOverseerSpouseName,
+      circuitOverseerPhone: data.circuitOverseerPhone.present
+          ? data.circuitOverseerPhone.value
+          : this.circuitOverseerPhone,
+      circuitOverseerEmail: data.circuitOverseerEmail.present
+          ? data.circuitOverseerEmail.value
+          : this.circuitOverseerEmail,
+      circuitOverseerAddress: data.circuitOverseerAddress.present
+          ? data.circuitOverseerAddress.value
+          : this.circuitOverseerAddress,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
     );
@@ -457,6 +660,11 @@ class Congregation extends DataClass implements Insertable<Congregation> {
           ..write('number: $number, ')
           ..write('city: $city, ')
           ..write('circuitNumber: $circuitNumber, ')
+          ..write('circuitOverseerName: $circuitOverseerName, ')
+          ..write('circuitOverseerSpouseName: $circuitOverseerSpouseName, ')
+          ..write('circuitOverseerPhone: $circuitOverseerPhone, ')
+          ..write('circuitOverseerEmail: $circuitOverseerEmail, ')
+          ..write('circuitOverseerAddress: $circuitOverseerAddress, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
@@ -474,6 +682,11 @@ class Congregation extends DataClass implements Insertable<Congregation> {
     number,
     city,
     circuitNumber,
+    circuitOverseerName,
+    circuitOverseerSpouseName,
+    circuitOverseerPhone,
+    circuitOverseerEmail,
+    circuitOverseerAddress,
     createdAt,
     updatedAt,
   );
@@ -490,6 +703,11 @@ class Congregation extends DataClass implements Insertable<Congregation> {
           other.number == this.number &&
           other.city == this.city &&
           other.circuitNumber == this.circuitNumber &&
+          other.circuitOverseerName == this.circuitOverseerName &&
+          other.circuitOverseerSpouseName == this.circuitOverseerSpouseName &&
+          other.circuitOverseerPhone == this.circuitOverseerPhone &&
+          other.circuitOverseerEmail == this.circuitOverseerEmail &&
+          other.circuitOverseerAddress == this.circuitOverseerAddress &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt);
 }
@@ -504,6 +722,11 @@ class CongregationsCompanion extends UpdateCompanion<Congregation> {
   final Value<String> number;
   final Value<String> city;
   final Value<String> circuitNumber;
+  final Value<String> circuitOverseerName;
+  final Value<String> circuitOverseerSpouseName;
+  final Value<String> circuitOverseerPhone;
+  final Value<String> circuitOverseerEmail;
+  final Value<String> circuitOverseerAddress;
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
   const CongregationsCompanion({
@@ -516,6 +739,11 @@ class CongregationsCompanion extends UpdateCompanion<Congregation> {
     this.number = const Value.absent(),
     this.city = const Value.absent(),
     this.circuitNumber = const Value.absent(),
+    this.circuitOverseerName = const Value.absent(),
+    this.circuitOverseerSpouseName = const Value.absent(),
+    this.circuitOverseerPhone = const Value.absent(),
+    this.circuitOverseerEmail = const Value.absent(),
+    this.circuitOverseerAddress = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
   });
@@ -529,6 +757,11 @@ class CongregationsCompanion extends UpdateCompanion<Congregation> {
     this.number = const Value.absent(),
     this.city = const Value.absent(),
     this.circuitNumber = const Value.absent(),
+    this.circuitOverseerName = const Value.absent(),
+    this.circuitOverseerSpouseName = const Value.absent(),
+    this.circuitOverseerPhone = const Value.absent(),
+    this.circuitOverseerEmail = const Value.absent(),
+    this.circuitOverseerAddress = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
   });
@@ -542,6 +775,11 @@ class CongregationsCompanion extends UpdateCompanion<Congregation> {
     Expression<String>? number,
     Expression<String>? city,
     Expression<String>? circuitNumber,
+    Expression<String>? circuitOverseerName,
+    Expression<String>? circuitOverseerSpouseName,
+    Expression<String>? circuitOverseerPhone,
+    Expression<String>? circuitOverseerEmail,
+    Expression<String>? circuitOverseerAddress,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
   }) {
@@ -555,6 +793,16 @@ class CongregationsCompanion extends UpdateCompanion<Congregation> {
       if (number != null) 'number': number,
       if (city != null) 'city': city,
       if (circuitNumber != null) 'circuit_number': circuitNumber,
+      if (circuitOverseerName != null)
+        'circuit_overseer_name': circuitOverseerName,
+      if (circuitOverseerSpouseName != null)
+        'circuit_overseer_spouse_name': circuitOverseerSpouseName,
+      if (circuitOverseerPhone != null)
+        'circuit_overseer_phone': circuitOverseerPhone,
+      if (circuitOverseerEmail != null)
+        'circuit_overseer_email': circuitOverseerEmail,
+      if (circuitOverseerAddress != null)
+        'circuit_overseer_address': circuitOverseerAddress,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
     });
@@ -570,6 +818,11 @@ class CongregationsCompanion extends UpdateCompanion<Congregation> {
     Value<String>? number,
     Value<String>? city,
     Value<String>? circuitNumber,
+    Value<String>? circuitOverseerName,
+    Value<String>? circuitOverseerSpouseName,
+    Value<String>? circuitOverseerPhone,
+    Value<String>? circuitOverseerEmail,
+    Value<String>? circuitOverseerAddress,
     Value<DateTime>? createdAt,
     Value<DateTime>? updatedAt,
   }) {
@@ -583,6 +836,13 @@ class CongregationsCompanion extends UpdateCompanion<Congregation> {
       number: number ?? this.number,
       city: city ?? this.city,
       circuitNumber: circuitNumber ?? this.circuitNumber,
+      circuitOverseerName: circuitOverseerName ?? this.circuitOverseerName,
+      circuitOverseerSpouseName:
+          circuitOverseerSpouseName ?? this.circuitOverseerSpouseName,
+      circuitOverseerPhone: circuitOverseerPhone ?? this.circuitOverseerPhone,
+      circuitOverseerEmail: circuitOverseerEmail ?? this.circuitOverseerEmail,
+      circuitOverseerAddress:
+          circuitOverseerAddress ?? this.circuitOverseerAddress,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );
@@ -618,6 +878,31 @@ class CongregationsCompanion extends UpdateCompanion<Congregation> {
     if (circuitNumber.present) {
       map['circuit_number'] = Variable<String>(circuitNumber.value);
     }
+    if (circuitOverseerName.present) {
+      map['circuit_overseer_name'] = Variable<String>(
+        circuitOverseerName.value,
+      );
+    }
+    if (circuitOverseerSpouseName.present) {
+      map['circuit_overseer_spouse_name'] = Variable<String>(
+        circuitOverseerSpouseName.value,
+      );
+    }
+    if (circuitOverseerPhone.present) {
+      map['circuit_overseer_phone'] = Variable<String>(
+        circuitOverseerPhone.value,
+      );
+    }
+    if (circuitOverseerEmail.present) {
+      map['circuit_overseer_email'] = Variable<String>(
+        circuitOverseerEmail.value,
+      );
+    }
+    if (circuitOverseerAddress.present) {
+      map['circuit_overseer_address'] = Variable<String>(
+        circuitOverseerAddress.value,
+      );
+    }
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
     }
@@ -639,6 +924,11 @@ class CongregationsCompanion extends UpdateCompanion<Congregation> {
           ..write('number: $number, ')
           ..write('city: $city, ')
           ..write('circuitNumber: $circuitNumber, ')
+          ..write('circuitOverseerName: $circuitOverseerName, ')
+          ..write('circuitOverseerSpouseName: $circuitOverseerSpouseName, ')
+          ..write('circuitOverseerPhone: $circuitOverseerPhone, ')
+          ..write('circuitOverseerEmail: $circuitOverseerEmail, ')
+          ..write('circuitOverseerAddress: $circuitOverseerAddress, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
@@ -1542,6 +1832,16 @@ class $PersonsTable extends Persons with TableInfo<$PersonsTable, Person> {
     requiredDuringInsert: false,
     defaultValue: const Constant(''),
   );
+  static const VerificationMeta _emailMeta = const VerificationMeta('email');
+  @override
+  late final GeneratedColumn<String> email = GeneratedColumn<String>(
+    'email',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
   static const VerificationMeta _isActiveMeta = const VerificationMeta(
     'isActive',
   );
@@ -1563,6 +1863,47 @@ class $PersonsTable extends Persons with TableInfo<$PersonsTable, Person> {
   @override
   late final GeneratedColumn<DateTime> inactiveDate = GeneratedColumn<DateTime>(
     'inactive_date',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  @override
+  late final GeneratedColumnWithTypeConverter<PersonRecordStatus, int>
+  recordStatus = GeneratedColumn<int>(
+    'record_status',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  ).withConverter<PersonRecordStatus>($PersonsTable.$converterrecordStatus);
+  @override
+  late final GeneratedColumnWithTypeConverter<PersonArchiveReason?, int>
+  archiveReason = GeneratedColumn<int>(
+    'archive_reason',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  ).withConverter<PersonArchiveReason?>($PersonsTable.$converterarchiveReasonn);
+  static const VerificationMeta _archivedAtMeta = const VerificationMeta(
+    'archivedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> archivedAt = GeneratedColumn<DateTime>(
+    'archived_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _trashedAtMeta = const VerificationMeta(
+    'trashedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> trashedAt = GeneratedColumn<DateTime>(
+    'trashed_at',
     aliasedName,
     true,
     type: DriftSqlType.dateTime,
@@ -1636,8 +1977,13 @@ class $PersonsTable extends Persons with TableInfo<$PersonsTable, Person> {
     congregationRole,
     pioneerType,
     address,
+    email,
     isActive,
     inactiveDate,
+    recordStatus,
+    archiveReason,
+    archivedAt,
+    trashedAt,
     congregationId,
     fieldServiceGroupId,
     createdAt,
@@ -1727,6 +2073,12 @@ class $PersonsTable extends Persons with TableInfo<$PersonsTable, Person> {
         address.isAcceptableOrUnknown(data['address']!, _addressMeta),
       );
     }
+    if (data.containsKey('email')) {
+      context.handle(
+        _emailMeta,
+        email.isAcceptableOrUnknown(data['email']!, _emailMeta),
+      );
+    }
     if (data.containsKey('is_active')) {
       context.handle(
         _isActiveMeta,
@@ -1740,6 +2092,18 @@ class $PersonsTable extends Persons with TableInfo<$PersonsTable, Person> {
           data['inactive_date']!,
           _inactiveDateMeta,
         ),
+      );
+    }
+    if (data.containsKey('archived_at')) {
+      context.handle(
+        _archivedAtMeta,
+        archivedAt.isAcceptableOrUnknown(data['archived_at']!, _archivedAtMeta),
+      );
+    }
+    if (data.containsKey('trashed_at')) {
+      context.handle(
+        _trashedAtMeta,
+        trashedAt.isAcceptableOrUnknown(data['trashed_at']!, _trashedAtMeta),
       );
     }
     if (data.containsKey('congregation_id')) {
@@ -1849,6 +2213,10 @@ class $PersonsTable extends Persons with TableInfo<$PersonsTable, Person> {
         DriftSqlType.string,
         data['${effectivePrefix}address'],
       )!,
+      email: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}email'],
+      )!,
       isActive: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}is_active'],
@@ -1856,6 +2224,26 @@ class $PersonsTable extends Persons with TableInfo<$PersonsTable, Person> {
       inactiveDate: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}inactive_date'],
+      ),
+      recordStatus: $PersonsTable.$converterrecordStatus.fromSql(
+        attachedDatabase.typeMapping.read(
+          DriftSqlType.int,
+          data['${effectivePrefix}record_status'],
+        )!,
+      ),
+      archiveReason: $PersonsTable.$converterarchiveReasonn.fromSql(
+        attachedDatabase.typeMapping.read(
+          DriftSqlType.int,
+          data['${effectivePrefix}archive_reason'],
+        ),
+      ),
+      archivedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}archived_at'],
+      ),
+      trashedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}trashed_at'],
       ),
       congregationId: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
@@ -1891,6 +2279,18 @@ class $PersonsTable extends Persons with TableInfo<$PersonsTable, Person> {
   );
   static JsonTypeConverter2<PioneerType, int, int> $converterpioneerType =
       const EnumIndexConverter<PioneerType>(PioneerType.values);
+  static JsonTypeConverter2<PersonRecordStatus, int, int>
+  $converterrecordStatus = const EnumIndexConverter<PersonRecordStatus>(
+    PersonRecordStatus.values,
+  );
+  static JsonTypeConverter2<PersonArchiveReason, int, int>
+  $converterarchiveReason = const EnumIndexConverter<PersonArchiveReason>(
+    PersonArchiveReason.values,
+  );
+  static JsonTypeConverter2<PersonArchiveReason?, int?, int?>
+  $converterarchiveReasonn = JsonTypeConverter2.asNullable(
+    $converterarchiveReason,
+  );
 }
 
 class Person extends DataClass implements Insertable<Person> {
@@ -1909,8 +2309,13 @@ class Person extends DataClass implements Insertable<Person> {
   final CongregationRole congregationRole;
   final PioneerType pioneerType;
   final String address;
+  final String email;
   final bool isActive;
   final DateTime? inactiveDate;
+  final PersonRecordStatus recordStatus;
+  final PersonArchiveReason? archiveReason;
+  final DateTime? archivedAt;
+  final DateTime? trashedAt;
   final int? congregationId;
   final int? fieldServiceGroupId;
   final DateTime createdAt;
@@ -1931,8 +2336,13 @@ class Person extends DataClass implements Insertable<Person> {
     required this.congregationRole,
     required this.pioneerType,
     required this.address,
+    required this.email,
     required this.isActive,
     this.inactiveDate,
+    required this.recordStatus,
+    this.archiveReason,
+    this.archivedAt,
+    this.trashedAt,
     this.congregationId,
     this.fieldServiceGroupId,
     required this.createdAt,
@@ -1982,9 +2392,26 @@ class Person extends DataClass implements Insertable<Person> {
       );
     }
     map['address'] = Variable<String>(address);
+    map['email'] = Variable<String>(email);
     map['is_active'] = Variable<bool>(isActive);
     if (!nullToAbsent || inactiveDate != null) {
       map['inactive_date'] = Variable<DateTime>(inactiveDate);
+    }
+    {
+      map['record_status'] = Variable<int>(
+        $PersonsTable.$converterrecordStatus.toSql(recordStatus),
+      );
+    }
+    if (!nullToAbsent || archiveReason != null) {
+      map['archive_reason'] = Variable<int>(
+        $PersonsTable.$converterarchiveReasonn.toSql(archiveReason),
+      );
+    }
+    if (!nullToAbsent || archivedAt != null) {
+      map['archived_at'] = Variable<DateTime>(archivedAt);
+    }
+    if (!nullToAbsent || trashedAt != null) {
+      map['trashed_at'] = Variable<DateTime>(trashedAt);
     }
     if (!nullToAbsent || congregationId != null) {
       map['congregation_id'] = Variable<int>(congregationId);
@@ -2024,10 +2451,21 @@ class Person extends DataClass implements Insertable<Person> {
       congregationRole: Value(congregationRole),
       pioneerType: Value(pioneerType),
       address: Value(address),
+      email: Value(email),
       isActive: Value(isActive),
       inactiveDate: inactiveDate == null && nullToAbsent
           ? const Value.absent()
           : Value(inactiveDate),
+      recordStatus: Value(recordStatus),
+      archiveReason: archiveReason == null && nullToAbsent
+          ? const Value.absent()
+          : Value(archiveReason),
+      archivedAt: archivedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(archivedAt),
+      trashedAt: trashedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(trashedAt),
       congregationId: congregationId == null && nullToAbsent
           ? const Value.absent()
           : Value(congregationId),
@@ -2068,8 +2506,17 @@ class Person extends DataClass implements Insertable<Person> {
         serializer.fromJson<int>(json['pioneerType']),
       ),
       address: serializer.fromJson<String>(json['address']),
+      email: serializer.fromJson<String>(json['email']),
       isActive: serializer.fromJson<bool>(json['isActive']),
       inactiveDate: serializer.fromJson<DateTime?>(json['inactiveDate']),
+      recordStatus: $PersonsTable.$converterrecordStatus.fromJson(
+        serializer.fromJson<int>(json['recordStatus']),
+      ),
+      archiveReason: $PersonsTable.$converterarchiveReasonn.fromJson(
+        serializer.fromJson<int?>(json['archiveReason']),
+      ),
+      archivedAt: serializer.fromJson<DateTime?>(json['archivedAt']),
+      trashedAt: serializer.fromJson<DateTime?>(json['trashedAt']),
       congregationId: serializer.fromJson<int?>(json['congregationId']),
       fieldServiceGroupId: serializer.fromJson<int?>(
         json['fieldServiceGroupId'],
@@ -2105,8 +2552,17 @@ class Person extends DataClass implements Insertable<Person> {
         $PersonsTable.$converterpioneerType.toJson(pioneerType),
       ),
       'address': serializer.toJson<String>(address),
+      'email': serializer.toJson<String>(email),
       'isActive': serializer.toJson<bool>(isActive),
       'inactiveDate': serializer.toJson<DateTime?>(inactiveDate),
+      'recordStatus': serializer.toJson<int>(
+        $PersonsTable.$converterrecordStatus.toJson(recordStatus),
+      ),
+      'archiveReason': serializer.toJson<int?>(
+        $PersonsTable.$converterarchiveReasonn.toJson(archiveReason),
+      ),
+      'archivedAt': serializer.toJson<DateTime?>(archivedAt),
+      'trashedAt': serializer.toJson<DateTime?>(trashedAt),
       'congregationId': serializer.toJson<int?>(congregationId),
       'fieldServiceGroupId': serializer.toJson<int?>(fieldServiceGroupId),
       'createdAt': serializer.toJson<DateTime>(createdAt),
@@ -2130,8 +2586,13 @@ class Person extends DataClass implements Insertable<Person> {
     CongregationRole? congregationRole,
     PioneerType? pioneerType,
     String? address,
+    String? email,
     bool? isActive,
     Value<DateTime?> inactiveDate = const Value.absent(),
+    PersonRecordStatus? recordStatus,
+    Value<PersonArchiveReason?> archiveReason = const Value.absent(),
+    Value<DateTime?> archivedAt = const Value.absent(),
+    Value<DateTime?> trashedAt = const Value.absent(),
     Value<int?> congregationId = const Value.absent(),
     Value<int?> fieldServiceGroupId = const Value.absent(),
     DateTime? createdAt,
@@ -2152,8 +2613,15 @@ class Person extends DataClass implements Insertable<Person> {
     congregationRole: congregationRole ?? this.congregationRole,
     pioneerType: pioneerType ?? this.pioneerType,
     address: address ?? this.address,
+    email: email ?? this.email,
     isActive: isActive ?? this.isActive,
     inactiveDate: inactiveDate.present ? inactiveDate.value : this.inactiveDate,
+    recordStatus: recordStatus ?? this.recordStatus,
+    archiveReason: archiveReason.present
+        ? archiveReason.value
+        : this.archiveReason,
+    archivedAt: archivedAt.present ? archivedAt.value : this.archivedAt,
+    trashedAt: trashedAt.present ? trashedAt.value : this.trashedAt,
     congregationId: congregationId.present
         ? congregationId.value
         : this.congregationId,
@@ -2192,10 +2660,21 @@ class Person extends DataClass implements Insertable<Person> {
           ? data.pioneerType.value
           : this.pioneerType,
       address: data.address.present ? data.address.value : this.address,
+      email: data.email.present ? data.email.value : this.email,
       isActive: data.isActive.present ? data.isActive.value : this.isActive,
       inactiveDate: data.inactiveDate.present
           ? data.inactiveDate.value
           : this.inactiveDate,
+      recordStatus: data.recordStatus.present
+          ? data.recordStatus.value
+          : this.recordStatus,
+      archiveReason: data.archiveReason.present
+          ? data.archiveReason.value
+          : this.archiveReason,
+      archivedAt: data.archivedAt.present
+          ? data.archivedAt.value
+          : this.archivedAt,
+      trashedAt: data.trashedAt.present ? data.trashedAt.value : this.trashedAt,
       congregationId: data.congregationId.present
           ? data.congregationId.value
           : this.congregationId,
@@ -2225,8 +2704,13 @@ class Person extends DataClass implements Insertable<Person> {
           ..write('congregationRole: $congregationRole, ')
           ..write('pioneerType: $pioneerType, ')
           ..write('address: $address, ')
+          ..write('email: $email, ')
           ..write('isActive: $isActive, ')
           ..write('inactiveDate: $inactiveDate, ')
+          ..write('recordStatus: $recordStatus, ')
+          ..write('archiveReason: $archiveReason, ')
+          ..write('archivedAt: $archivedAt, ')
+          ..write('trashedAt: $trashedAt, ')
           ..write('congregationId: $congregationId, ')
           ..write('fieldServiceGroupId: $fieldServiceGroupId, ')
           ..write('createdAt: $createdAt, ')
@@ -2252,8 +2736,13 @@ class Person extends DataClass implements Insertable<Person> {
     congregationRole,
     pioneerType,
     address,
+    email,
     isActive,
     inactiveDate,
+    recordStatus,
+    archiveReason,
+    archivedAt,
+    trashedAt,
     congregationId,
     fieldServiceGroupId,
     createdAt,
@@ -2278,8 +2767,13 @@ class Person extends DataClass implements Insertable<Person> {
           other.congregationRole == this.congregationRole &&
           other.pioneerType == this.pioneerType &&
           other.address == this.address &&
+          other.email == this.email &&
           other.isActive == this.isActive &&
           other.inactiveDate == this.inactiveDate &&
+          other.recordStatus == this.recordStatus &&
+          other.archiveReason == this.archiveReason &&
+          other.archivedAt == this.archivedAt &&
+          other.trashedAt == this.trashedAt &&
           other.congregationId == this.congregationId &&
           other.fieldServiceGroupId == this.fieldServiceGroupId &&
           other.createdAt == this.createdAt &&
@@ -2302,8 +2796,13 @@ class PersonsCompanion extends UpdateCompanion<Person> {
   final Value<CongregationRole> congregationRole;
   final Value<PioneerType> pioneerType;
   final Value<String> address;
+  final Value<String> email;
   final Value<bool> isActive;
   final Value<DateTime?> inactiveDate;
+  final Value<PersonRecordStatus> recordStatus;
+  final Value<PersonArchiveReason?> archiveReason;
+  final Value<DateTime?> archivedAt;
+  final Value<DateTime?> trashedAt;
   final Value<int?> congregationId;
   final Value<int?> fieldServiceGroupId;
   final Value<DateTime> createdAt;
@@ -2324,8 +2823,13 @@ class PersonsCompanion extends UpdateCompanion<Person> {
     this.congregationRole = const Value.absent(),
     this.pioneerType = const Value.absent(),
     this.address = const Value.absent(),
+    this.email = const Value.absent(),
     this.isActive = const Value.absent(),
     this.inactiveDate = const Value.absent(),
+    this.recordStatus = const Value.absent(),
+    this.archiveReason = const Value.absent(),
+    this.archivedAt = const Value.absent(),
+    this.trashedAt = const Value.absent(),
     this.congregationId = const Value.absent(),
     this.fieldServiceGroupId = const Value.absent(),
     this.createdAt = const Value.absent(),
@@ -2347,8 +2851,13 @@ class PersonsCompanion extends UpdateCompanion<Person> {
     this.congregationRole = const Value.absent(),
     this.pioneerType = const Value.absent(),
     this.address = const Value.absent(),
+    this.email = const Value.absent(),
     this.isActive = const Value.absent(),
     this.inactiveDate = const Value.absent(),
+    this.recordStatus = const Value.absent(),
+    this.archiveReason = const Value.absent(),
+    this.archivedAt = const Value.absent(),
+    this.trashedAt = const Value.absent(),
     this.congregationId = const Value.absent(),
     this.fieldServiceGroupId = const Value.absent(),
     this.createdAt = const Value.absent(),
@@ -2370,8 +2879,13 @@ class PersonsCompanion extends UpdateCompanion<Person> {
     Expression<int>? congregationRole,
     Expression<int>? pioneerType,
     Expression<String>? address,
+    Expression<String>? email,
     Expression<bool>? isActive,
     Expression<DateTime>? inactiveDate,
+    Expression<int>? recordStatus,
+    Expression<int>? archiveReason,
+    Expression<DateTime>? archivedAt,
+    Expression<DateTime>? trashedAt,
     Expression<int>? congregationId,
     Expression<int>? fieldServiceGroupId,
     Expression<DateTime>? createdAt,
@@ -2393,8 +2907,13 @@ class PersonsCompanion extends UpdateCompanion<Person> {
       if (congregationRole != null) 'congregation_role': congregationRole,
       if (pioneerType != null) 'pioneer_type': pioneerType,
       if (address != null) 'address': address,
+      if (email != null) 'email': email,
       if (isActive != null) 'is_active': isActive,
       if (inactiveDate != null) 'inactive_date': inactiveDate,
+      if (recordStatus != null) 'record_status': recordStatus,
+      if (archiveReason != null) 'archive_reason': archiveReason,
+      if (archivedAt != null) 'archived_at': archivedAt,
+      if (trashedAt != null) 'trashed_at': trashedAt,
       if (congregationId != null) 'congregation_id': congregationId,
       if (fieldServiceGroupId != null)
         'field_service_group_id': fieldServiceGroupId,
@@ -2419,8 +2938,13 @@ class PersonsCompanion extends UpdateCompanion<Person> {
     Value<CongregationRole>? congregationRole,
     Value<PioneerType>? pioneerType,
     Value<String>? address,
+    Value<String>? email,
     Value<bool>? isActive,
     Value<DateTime?>? inactiveDate,
+    Value<PersonRecordStatus>? recordStatus,
+    Value<PersonArchiveReason?>? archiveReason,
+    Value<DateTime?>? archivedAt,
+    Value<DateTime?>? trashedAt,
     Value<int?>? congregationId,
     Value<int?>? fieldServiceGroupId,
     Value<DateTime>? createdAt,
@@ -2442,8 +2966,13 @@ class PersonsCompanion extends UpdateCompanion<Person> {
       congregationRole: congregationRole ?? this.congregationRole,
       pioneerType: pioneerType ?? this.pioneerType,
       address: address ?? this.address,
+      email: email ?? this.email,
       isActive: isActive ?? this.isActive,
       inactiveDate: inactiveDate ?? this.inactiveDate,
+      recordStatus: recordStatus ?? this.recordStatus,
+      archiveReason: archiveReason ?? this.archiveReason,
+      archivedAt: archivedAt ?? this.archivedAt,
+      trashedAt: trashedAt ?? this.trashedAt,
       congregationId: congregationId ?? this.congregationId,
       fieldServiceGroupId: fieldServiceGroupId ?? this.fieldServiceGroupId,
       createdAt: createdAt ?? this.createdAt,
@@ -2507,11 +3036,30 @@ class PersonsCompanion extends UpdateCompanion<Person> {
     if (address.present) {
       map['address'] = Variable<String>(address.value);
     }
+    if (email.present) {
+      map['email'] = Variable<String>(email.value);
+    }
     if (isActive.present) {
       map['is_active'] = Variable<bool>(isActive.value);
     }
     if (inactiveDate.present) {
       map['inactive_date'] = Variable<DateTime>(inactiveDate.value);
+    }
+    if (recordStatus.present) {
+      map['record_status'] = Variable<int>(
+        $PersonsTable.$converterrecordStatus.toSql(recordStatus.value),
+      );
+    }
+    if (archiveReason.present) {
+      map['archive_reason'] = Variable<int>(
+        $PersonsTable.$converterarchiveReasonn.toSql(archiveReason.value),
+      );
+    }
+    if (archivedAt.present) {
+      map['archived_at'] = Variable<DateTime>(archivedAt.value);
+    }
+    if (trashedAt.present) {
+      map['trashed_at'] = Variable<DateTime>(trashedAt.value);
     }
     if (congregationId.present) {
       map['congregation_id'] = Variable<int>(congregationId.value);
@@ -2546,8 +3094,13 @@ class PersonsCompanion extends UpdateCompanion<Person> {
           ..write('congregationRole: $congregationRole, ')
           ..write('pioneerType: $pioneerType, ')
           ..write('address: $address, ')
+          ..write('email: $email, ')
           ..write('isActive: $isActive, ')
           ..write('inactiveDate: $inactiveDate, ')
+          ..write('recordStatus: $recordStatus, ')
+          ..write('archiveReason: $archiveReason, ')
+          ..write('archivedAt: $archivedAt, ')
+          ..write('trashedAt: $trashedAt, ')
           ..write('congregationId: $congregationId, ')
           ..write('fieldServiceGroupId: $fieldServiceGroupId, ')
           ..write('createdAt: $createdAt, ')
@@ -6947,6 +7500,11 @@ typedef $$CongregationsTableCreateCompanionBuilder =
       Value<String> number,
       Value<String> city,
       Value<String> circuitNumber,
+      Value<String> circuitOverseerName,
+      Value<String> circuitOverseerSpouseName,
+      Value<String> circuitOverseerPhone,
+      Value<String> circuitOverseerEmail,
+      Value<String> circuitOverseerAddress,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
     });
@@ -6961,6 +7519,11 @@ typedef $$CongregationsTableUpdateCompanionBuilder =
       Value<String> number,
       Value<String> city,
       Value<String> circuitNumber,
+      Value<String> circuitOverseerName,
+      Value<String> circuitOverseerSpouseName,
+      Value<String> circuitOverseerPhone,
+      Value<String> circuitOverseerEmail,
+      Value<String> circuitOverseerAddress,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
     });
@@ -7071,6 +7634,31 @@ class $$CongregationsTableFilterComposer
 
   ColumnFilters<String> get circuitNumber => $composableBuilder(
     column: $table.circuitNumber,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get circuitOverseerName => $composableBuilder(
+    column: $table.circuitOverseerName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get circuitOverseerSpouseName => $composableBuilder(
+    column: $table.circuitOverseerSpouseName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get circuitOverseerPhone => $composableBuilder(
+    column: $table.circuitOverseerPhone,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get circuitOverseerEmail => $composableBuilder(
+    column: $table.circuitOverseerEmail,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get circuitOverseerAddress => $composableBuilder(
+    column: $table.circuitOverseerAddress,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -7189,6 +7777,31 @@ class $$CongregationsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get circuitOverseerName => $composableBuilder(
+    column: $table.circuitOverseerName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get circuitOverseerSpouseName => $composableBuilder(
+    column: $table.circuitOverseerSpouseName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get circuitOverseerPhone => $composableBuilder(
+    column: $table.circuitOverseerPhone,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get circuitOverseerEmail => $composableBuilder(
+    column: $table.circuitOverseerEmail,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get circuitOverseerAddress => $composableBuilder(
+    column: $table.circuitOverseerAddress,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get createdAt => $composableBuilder(
     column: $table.createdAt,
     builder: (column) => ColumnOrderings(column),
@@ -7239,6 +7852,31 @@ class $$CongregationsTableAnnotationComposer
 
   GeneratedColumn<String> get circuitNumber => $composableBuilder(
     column: $table.circuitNumber,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get circuitOverseerName => $composableBuilder(
+    column: $table.circuitOverseerName,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get circuitOverseerSpouseName => $composableBuilder(
+    column: $table.circuitOverseerSpouseName,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get circuitOverseerPhone => $composableBuilder(
+    column: $table.circuitOverseerPhone,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get circuitOverseerEmail => $composableBuilder(
+    column: $table.circuitOverseerEmail,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get circuitOverseerAddress => $composableBuilder(
+    column: $table.circuitOverseerAddress,
     builder: (column) => column,
   );
 
@@ -7340,6 +7978,11 @@ class $$CongregationsTableTableManager
                 Value<String> number = const Value.absent(),
                 Value<String> city = const Value.absent(),
                 Value<String> circuitNumber = const Value.absent(),
+                Value<String> circuitOverseerName = const Value.absent(),
+                Value<String> circuitOverseerSpouseName = const Value.absent(),
+                Value<String> circuitOverseerPhone = const Value.absent(),
+                Value<String> circuitOverseerEmail = const Value.absent(),
+                Value<String> circuitOverseerAddress = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
               }) => CongregationsCompanion(
@@ -7352,6 +7995,11 @@ class $$CongregationsTableTableManager
                 number: number,
                 city: city,
                 circuitNumber: circuitNumber,
+                circuitOverseerName: circuitOverseerName,
+                circuitOverseerSpouseName: circuitOverseerSpouseName,
+                circuitOverseerPhone: circuitOverseerPhone,
+                circuitOverseerEmail: circuitOverseerEmail,
+                circuitOverseerAddress: circuitOverseerAddress,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
               ),
@@ -7366,6 +8014,11 @@ class $$CongregationsTableTableManager
                 Value<String> number = const Value.absent(),
                 Value<String> city = const Value.absent(),
                 Value<String> circuitNumber = const Value.absent(),
+                Value<String> circuitOverseerName = const Value.absent(),
+                Value<String> circuitOverseerSpouseName = const Value.absent(),
+                Value<String> circuitOverseerPhone = const Value.absent(),
+                Value<String> circuitOverseerEmail = const Value.absent(),
+                Value<String> circuitOverseerAddress = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
               }) => CongregationsCompanion.insert(
@@ -7378,6 +8031,11 @@ class $$CongregationsTableTableManager
                 number: number,
                 city: city,
                 circuitNumber: circuitNumber,
+                circuitOverseerName: circuitOverseerName,
+                circuitOverseerSpouseName: circuitOverseerSpouseName,
+                circuitOverseerPhone: circuitOverseerPhone,
+                circuitOverseerEmail: circuitOverseerEmail,
+                circuitOverseerAddress: circuitOverseerAddress,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
               ),
@@ -8050,8 +8708,13 @@ typedef $$PersonsTableCreateCompanionBuilder =
       Value<CongregationRole> congregationRole,
       Value<PioneerType> pioneerType,
       Value<String> address,
+      Value<String> email,
       Value<bool> isActive,
       Value<DateTime?> inactiveDate,
+      Value<PersonRecordStatus> recordStatus,
+      Value<PersonArchiveReason?> archiveReason,
+      Value<DateTime?> archivedAt,
+      Value<DateTime?> trashedAt,
       Value<int?> congregationId,
       Value<int?> fieldServiceGroupId,
       Value<DateTime> createdAt,
@@ -8074,8 +8737,13 @@ typedef $$PersonsTableUpdateCompanionBuilder =
       Value<CongregationRole> congregationRole,
       Value<PioneerType> pioneerType,
       Value<String> address,
+      Value<String> email,
       Value<bool> isActive,
       Value<DateTime?> inactiveDate,
+      Value<PersonRecordStatus> recordStatus,
+      Value<PersonArchiveReason?> archiveReason,
+      Value<DateTime?> archivedAt,
+      Value<DateTime?> trashedAt,
       Value<int?> congregationId,
       Value<int?> fieldServiceGroupId,
       Value<DateTime> createdAt,
@@ -8304,6 +8972,11 @@ class $$PersonsTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<String> get email => $composableBuilder(
+    column: $table.email,
+    builder: (column) => ColumnFilters(column),
+  );
+
   ColumnFilters<bool> get isActive => $composableBuilder(
     column: $table.isActive,
     builder: (column) => ColumnFilters(column),
@@ -8311,6 +8984,28 @@ class $$PersonsTableFilterComposer
 
   ColumnFilters<DateTime> get inactiveDate => $composableBuilder(
     column: $table.inactiveDate,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnWithTypeConverterFilters<PersonRecordStatus, PersonRecordStatus, int>
+  get recordStatus => $composableBuilder(
+    column: $table.recordStatus,
+    builder: (column) => ColumnWithTypeConverterFilters(column),
+  );
+
+  ColumnWithTypeConverterFilters<PersonArchiveReason?, PersonArchiveReason, int>
+  get archiveReason => $composableBuilder(
+    column: $table.archiveReason,
+    builder: (column) => ColumnWithTypeConverterFilters(column),
+  );
+
+  ColumnFilters<DateTime> get archivedAt => $composableBuilder(
+    column: $table.archivedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get trashedAt => $composableBuilder(
+    column: $table.trashedAt,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -8556,6 +9251,11 @@ class $$PersonsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get email => $composableBuilder(
+    column: $table.email,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<bool> get isActive => $composableBuilder(
     column: $table.isActive,
     builder: (column) => ColumnOrderings(column),
@@ -8563,6 +9263,26 @@ class $$PersonsTableOrderingComposer
 
   ColumnOrderings<DateTime> get inactiveDate => $composableBuilder(
     column: $table.inactiveDate,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get recordStatus => $composableBuilder(
+    column: $table.recordStatus,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get archiveReason => $composableBuilder(
+    column: $table.archiveReason,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get archivedAt => $composableBuilder(
+    column: $table.archivedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get trashedAt => $composableBuilder(
+    column: $table.trashedAt,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -8691,6 +9411,9 @@ class $$PersonsTableAnnotationComposer
   GeneratedColumn<String> get address =>
       $composableBuilder(column: $table.address, builder: (column) => column);
 
+  GeneratedColumn<String> get email =>
+      $composableBuilder(column: $table.email, builder: (column) => column);
+
   GeneratedColumn<bool> get isActive =>
       $composableBuilder(column: $table.isActive, builder: (column) => column);
 
@@ -8698,6 +9421,26 @@ class $$PersonsTableAnnotationComposer
     column: $table.inactiveDate,
     builder: (column) => column,
   );
+
+  GeneratedColumnWithTypeConverter<PersonRecordStatus, int> get recordStatus =>
+      $composableBuilder(
+        column: $table.recordStatus,
+        builder: (column) => column,
+      );
+
+  GeneratedColumnWithTypeConverter<PersonArchiveReason?, int>
+  get archiveReason => $composableBuilder(
+    column: $table.archiveReason,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get archivedAt => $composableBuilder(
+    column: $table.archivedAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get trashedAt =>
+      $composableBuilder(column: $table.trashedAt, builder: (column) => column);
 
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
@@ -8906,8 +9649,14 @@ class $$PersonsTableTableManager
                 Value<CongregationRole> congregationRole = const Value.absent(),
                 Value<PioneerType> pioneerType = const Value.absent(),
                 Value<String> address = const Value.absent(),
+                Value<String> email = const Value.absent(),
                 Value<bool> isActive = const Value.absent(),
                 Value<DateTime?> inactiveDate = const Value.absent(),
+                Value<PersonRecordStatus> recordStatus = const Value.absent(),
+                Value<PersonArchiveReason?> archiveReason =
+                    const Value.absent(),
+                Value<DateTime?> archivedAt = const Value.absent(),
+                Value<DateTime?> trashedAt = const Value.absent(),
                 Value<int?> congregationId = const Value.absent(),
                 Value<int?> fieldServiceGroupId = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
@@ -8928,8 +9677,13 @@ class $$PersonsTableTableManager
                 congregationRole: congregationRole,
                 pioneerType: pioneerType,
                 address: address,
+                email: email,
                 isActive: isActive,
                 inactiveDate: inactiveDate,
+                recordStatus: recordStatus,
+                archiveReason: archiveReason,
+                archivedAt: archivedAt,
+                trashedAt: trashedAt,
                 congregationId: congregationId,
                 fieldServiceGroupId: fieldServiceGroupId,
                 createdAt: createdAt,
@@ -8952,8 +9706,14 @@ class $$PersonsTableTableManager
                 Value<CongregationRole> congregationRole = const Value.absent(),
                 Value<PioneerType> pioneerType = const Value.absent(),
                 Value<String> address = const Value.absent(),
+                Value<String> email = const Value.absent(),
                 Value<bool> isActive = const Value.absent(),
                 Value<DateTime?> inactiveDate = const Value.absent(),
+                Value<PersonRecordStatus> recordStatus = const Value.absent(),
+                Value<PersonArchiveReason?> archiveReason =
+                    const Value.absent(),
+                Value<DateTime?> archivedAt = const Value.absent(),
+                Value<DateTime?> trashedAt = const Value.absent(),
                 Value<int?> congregationId = const Value.absent(),
                 Value<int?> fieldServiceGroupId = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
@@ -8974,8 +9734,13 @@ class $$PersonsTableTableManager
                 congregationRole: congregationRole,
                 pioneerType: pioneerType,
                 address: address,
+                email: email,
                 isActive: isActive,
                 inactiveDate: inactiveDate,
+                recordStatus: recordStatus,
+                archiveReason: archiveReason,
+                archivedAt: archivedAt,
+                trashedAt: trashedAt,
                 congregationId: congregationId,
                 fieldServiceGroupId: fieldServiceGroupId,
                 createdAt: createdAt,

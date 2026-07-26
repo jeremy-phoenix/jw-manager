@@ -18,6 +18,16 @@ class Congregations extends Table with SyncColumns {
   TextColumn get number => text().withDefault(const Constant(''))();
   TextColumn get city => text().withDefault(const Constant(''))();
   TextColumn get circuitNumber => text().withDefault(const Constant(''))();
+  TextColumn get circuitOverseerName =>
+      text().withDefault(const Constant(''))();
+  TextColumn get circuitOverseerSpouseName =>
+      text().withDefault(const Constant(''))();
+  TextColumn get circuitOverseerPhone =>
+      text().withDefault(const Constant(''))();
+  TextColumn get circuitOverseerEmail =>
+      text().withDefault(const Constant(''))();
+  TextColumn get circuitOverseerAddress =>
+      text().withDefault(const Constant(''))();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
 }
@@ -37,8 +47,14 @@ class Persons extends Table with SyncColumns {
   IntColumn get pioneerType =>
       intEnum<PioneerType>().withDefault(const Constant(0))();
   TextColumn get address => text().withDefault(const Constant(''))();
+  TextColumn get email => text().withDefault(const Constant(''))();
   BoolColumn get isActive => boolean().withDefault(const Constant(true))();
   DateTimeColumn get inactiveDate => dateTime().nullable()();
+  IntColumn get recordStatus =>
+      intEnum<PersonRecordStatus>().withDefault(const Constant(0))();
+  IntColumn get archiveReason => intEnum<PersonArchiveReason>().nullable()();
+  DateTimeColumn get archivedAt => dateTime().nullable()();
+  DateTimeColumn get trashedAt => dateTime().nullable()();
   IntColumn get congregationId =>
       integer().nullable().references(Congregations, #id)();
   IntColumn get fieldServiceGroupId =>

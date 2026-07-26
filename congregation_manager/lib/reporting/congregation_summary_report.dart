@@ -11,10 +11,8 @@ pw.Document generateCongregationSummaryReport({
   required List<Person> allActive,
   required List<Person> newInactive,
   required List<Person> reactivated,
+  Congregation? congregation,
 }) {
-  final generatedAt =
-      'Generated on ${DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now())}';
-
   final pdf = pw.Document(title: 'Congregation Summary');
 
   pdf.addPage(
@@ -22,23 +20,9 @@ pw.Document generateCongregationSummaryReport({
       pageFormat: PdfPageFormat.a4,
       margin: const pw.EdgeInsets.all(30),
       maxPages: PdfStyles.maxPages,
-      header: (context) => pw.Column(
-        crossAxisAlignment: pw.CrossAxisAlignment.start,
-        children: [
-          pw.Text(
-            'Congregation Summary',
-            style: pw.TextStyle(
-              fontSize: 18,
-              fontWeight: pw.FontWeight.bold,
-              color: PdfStyles.headerColor,
-            ),
-          ),
-          pw.Text(
-            generatedAt,
-            style: pw.TextStyle(fontSize: 9, color: PdfStyles.footerColor),
-          ),
-          pw.SizedBox(height: 10),
-        ],
+      header: (context) => PdfStyles.reportTitleBlock(
+        title: 'Congregation Summary',
+        congregation: congregation,
       ),
       footer: (context) => pw.Align(
         alignment: pw.Alignment.centerRight,

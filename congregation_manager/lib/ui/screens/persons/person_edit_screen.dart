@@ -30,6 +30,7 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen>
   final _lastNameController = TextEditingController();
   final _otherNamesController = TextEditingController();
   final _addressController = TextEditingController();
+  final _emailController = TextEditingController();
   DateTime? _birthDate;
   DateTime? _baptismDate;
   Gender _gender = Gender.unknown;
@@ -78,6 +79,7 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen>
         _lastNameController.text = person.lastName;
         _otherNamesController.text = person.otherNames;
         _addressController.text = person.address;
+        _emailController.text = person.email;
         _birthDate = person.birthDate;
         _baptismDate = person.baptismDate;
         _gender = person.gender;
@@ -147,6 +149,7 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen>
     _lastNameController.dispose();
     _otherNamesController.dispose();
     _addressController.dispose();
+    _emailController.dispose();
     _newYearController.dispose();
     for (final p in _phoneNumbers) {
       p.numberController.dispose();
@@ -249,6 +252,19 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen>
                   border: OutlineInputBorder(),
                 ),
                 maxLines: 2,
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _emailController,
+                decoration: const InputDecoration(
+                  labelText: 'Email',
+                  border: OutlineInputBorder(),
+                ),
+                keyboardType: TextInputType.emailAddress,
+                validator: (v) =>
+                    (v == null || v.trim().isEmpty || v.contains('@'))
+                    ? null
+                    : 'Enter a valid email address',
               ),
               const SizedBox(height: 16),
               _responsiveRow(isWide, [
@@ -1065,6 +1081,7 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen>
           lastName: drift.Value(_lastNameController.text),
           otherNames: drift.Value(_otherNamesController.text),
           address: drift.Value(_addressController.text),
+          email: drift.Value(_emailController.text.trim()),
           birthDate: drift.Value(_birthDate),
           baptismDate: drift.Value(_baptismDate),
           gender: drift.Value(_gender),
@@ -1088,6 +1105,7 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen>
           lastName: drift.Value(_lastNameController.text),
           otherNames: drift.Value(_otherNamesController.text),
           address: drift.Value(_addressController.text),
+          email: drift.Value(_emailController.text.trim()),
           birthDate: drift.Value(_birthDate),
           baptismDate: drift.Value(_baptismDate),
           gender: drift.Value(_gender),

@@ -5,11 +5,13 @@ import 'package:congregation_manager/data/enums.dart';
 import 'package:congregation_manager/reporting/pdf_styles.dart';
 
 /// Emergency Contact List Report — landscape PDF.
-/// Columns: #, Full Name, Phone Number(s), Emergency Contact, Emergency Phone, Relationship
+/// Columns: #, Full Name, Phone Number(s), Email, Emergency Contact,
+/// Emergency Phone, Relationship
 pw.Document generateEmergencyContactListReport({
   required List<Person> persons,
   required Map<int, List<PhoneNumber>> phonesByPerson,
   required Map<int, List<EmergencyContact>> emergencyContactsByPerson,
+  Congregation? congregation,
 }) {
   final sorted = List<Person>.from(persons)
     ..sort(
@@ -27,12 +29,10 @@ pw.Document generateEmergencyContactListReport({
       margin: const pw.EdgeInsets.all(34),
       maxPages: PdfStyles.maxPages,
       header: (context) => context.pageNumber == 1
-          ? pw.Padding(
-              padding: const pw.EdgeInsets.only(bottom: 12),
-              child: pw.Text(
-                'Emergency Contact List',
-                style: PdfStyles.title(null),
-              ),
+          ? PdfStyles.reportTitleBlock(
+              title: 'Emergency Contact List',
+              congregation: congregation,
+              showCircuitOverseer: true,
             )
           : pw.SizedBox(),
       footer: (context) => PdfStyles.pageFooter(context),
@@ -47,6 +47,15 @@ pw.Document generateEmergencyContactListReport({
           cellStyle: const pw.TextStyle(fontSize: 9),
           cellDecoration: (index, data, rowNum) => PdfStyles.rowBorder,
           cellPadding: const pw.EdgeInsets.all(4),
+          columnWidths: {
+            0: const pw.FixedColumnWidth(22),
+            1: const pw.FlexColumnWidth(2),
+            2: const pw.FlexColumnWidth(1.8),
+            3: const pw.FlexColumnWidth(2.2),
+            4: const pw.FlexColumnWidth(2),
+            5: const pw.FlexColumnWidth(1.8),
+            6: const pw.FlexColumnWidth(1.2),
+          },
           cellAlignments: {
             0: pw.Alignment.center,
             1: pw.Alignment.centerLeft,
@@ -54,11 +63,13 @@ pw.Document generateEmergencyContactListReport({
             3: pw.Alignment.centerLeft,
             4: pw.Alignment.centerLeft,
             5: pw.Alignment.centerLeft,
+            6: pw.Alignment.centerLeft,
           },
           headers: [
             '#',
             'Full Name',
             'Phone Number(s)',
+            'Email',
             'Emergency Contact',
             'Emergency Phone',
             'Relationship',
@@ -77,6 +88,7 @@ pw.Document generateEmergencyContactListReport({
               '${i + 1}',
               formatPersonName(p.firstName, p.lastName),
               phoneStr,
+              p.email.isEmpty ? '—' : p.email,
               primary?.name ?? '—',
               primary?.phoneNumber ?? '—',
               primary != null

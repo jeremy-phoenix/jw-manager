@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:congregation_manager/providers/congregation_providers.dart';
 import 'package:congregation_manager/ui/screens/persons/person_list_screen.dart';
 import 'package:congregation_manager/ui/screens/persons/person_edit_screen.dart';
+import 'package:congregation_manager/ui/screens/persons/person_records_screen.dart';
 import 'package:congregation_manager/ui/screens/congregations/congregation_edit_screen.dart';
 import 'package:congregation_manager/ui/screens/groups/group_list_screen.dart';
 import 'package:congregation_manager/ui/screens/groups/group_edit_screen.dart';
@@ -70,6 +71,18 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             path: '/persons',
             pageBuilder: (context, state) =>
                 const NoTransitionPage(child: PersonListScreen()),
+          ),
+          GoRoute(
+            path: '/persons/archive',
+            pageBuilder: (context, state) => const NoTransitionPage(
+              child: PersonRecordsScreen(view: PersonRecordsView.archive),
+            ),
+          ),
+          GoRoute(
+            path: '/persons/trash',
+            pageBuilder: (context, state) => const NoTransitionPage(
+              child: PersonRecordsScreen(view: PersonRecordsView.trash),
+            ),
           ),
           GoRoute(
             path: '/groups',

@@ -100,3 +100,28 @@ enum EntityStatus {
   const EntityStatus(this.displayName);
   final String displayName;
 }
+
+/// Lifecycle state for a publisher record.
+///
+/// This is deliberately separate from [Person.isActive]: an inactive
+/// publisher is still a current member of the congregation, while archived
+/// and trashed records are hidden from current lists and reporting.
+enum PersonRecordStatus {
+  current('Current'),
+  archived('Archived'),
+  trashed('Trash');
+
+  const PersonRecordStatus(this.displayName);
+  final String displayName;
+}
+
+/// Why a publisher record was archived.
+enum PersonArchiveReason {
+  deceased('Deceased'),
+  transferredOut('Transferred out'),
+  noLongerPublisher('No longer a publisher'),
+  other('Other');
+
+  const PersonArchiveReason(this.displayName);
+  final String displayName;
+}

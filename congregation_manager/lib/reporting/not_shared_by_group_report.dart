@@ -13,12 +13,11 @@ pw.Document generateNotSharedInMinistryByGroupReport({
   required Map<int, FieldServiceGroup> groupsById,
   required int year,
   required int month,
+  Congregation? congregation,
 }) {
   final monthName = DateFormat.MMMM().format(DateTime(year, month));
   final title = 'Not Shared in Ministry';
   final subtitle = '$monthName $year';
-  final generatedAt =
-      'Generated: ${DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now())}';
 
   // Build grouped data: groupName → list of (person name)
   final grouped = <String, List<String>>{};
@@ -55,32 +54,14 @@ pw.Document generateNotSharedInMinistryByGroupReport({
       pageFormat: PdfPageFormat.a4,
       margin: const pw.EdgeInsets.all(34),
       maxPages: PdfStyles.maxPages,
-      header: (context) => pw.Column(
-        children: [
-          pw.Text(title, style: PdfStyles.title(null)),
-          pw.SizedBox(height: 4),
-          pw.Text(
-            subtitle,
-            style: pw.TextStyle(fontSize: 12, color: PdfStyles.footerColor),
-          ),
-          pw.Text(
-            'Grouped by Field Service Group',
-            style: pw.TextStyle(
-              fontSize: 10,
-              fontStyle: pw.FontStyle.italic,
-              color: PdfStyles.footerColor,
-            ),
-          ),
-          pw.SizedBox(height: 15),
-        ],
+      header: (context) => PdfStyles.reportTitleBlock(
+        title: title,
+        subtitle: '$subtitle — Grouped by Field Service Group',
+        congregation: congregation,
       ),
       footer: (context) => pw.Row(
         mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
         children: [
-          pw.Text(
-            generatedAt,
-            style: pw.TextStyle(fontSize: 8, color: PdfStyles.footerColor),
-          ),
           pw.Text(
             'Page ${context.pageNumber} / ${context.pagesCount}',
             style: pw.TextStyle(fontSize: 8, color: PdfStyles.footerColor),

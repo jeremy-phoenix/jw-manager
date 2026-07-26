@@ -56,7 +56,7 @@ class AppDatabase extends _$AppDatabase {
   static const _databaseSidecarSuffixes = ['', '-wal', '-shm', '-journal'];
 
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 6;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -79,23 +79,81 @@ class AppDatabase extends _$AppDatabase {
         await m.createTable(pendingSyncOperations);
         await m.createTable(syncConflicts);
       }
+      if (from < 5) {
+        await _addColumnIfMissing(
+          m,
+          congregations,
+          congregations.circuitOverseerName,
+        );
+        await _addColumnIfMissing(
+          m,
+          congregations,
+          congregations.circuitOverseerSpouseName,
+        );
+        await _addColumnIfMissing(
+          m,
+          congregations,
+          congregations.circuitOverseerPhone,
+        );
+        await _addColumnIfMissing(
+          m,
+          congregations,
+          congregations.circuitOverseerEmail,
+        );
+        await _addColumnIfMissing(
+          m,
+          congregations,
+          congregations.circuitOverseerAddress,
+        );
+        await _addColumnIfMissing(m, persons, persons.email);
+      }
+      if (from < 6) {
+        await _addColumnIfMissing(m, persons, persons.recordStatus);
+        await _addColumnIfMissing(m, persons, persons.archiveReason);
+        await _addColumnIfMissing(m, persons, persons.archivedAt);
+        await _addColumnIfMissing(m, persons, persons.trashedAt);
+      }
     },
   );
 
+  /// Adds [column] unless the table already has it. Drift runs migrations
+  /// without a transaction, so an interrupted upgrade can leave columns
+  /// half-applied with the old user_version; plain addColumn would then fail
+  /// with "duplicate column" on every subsequent open.
+  Future<void> _addColumnIfMissing(
+    Migrator m,
+    TableInfo table,
+    GeneratedColumn column,
+  ) async {
+    final existing = await customSelect(
+      'PRAGMA table_info(${table.actualTableName})',
+    ).get();
+    final present = existing.any(
+      (row) => row.read<String>('name') == column.name,
+    );
+    if (!present) {
+      await m.addColumn(table, column);
+    }
+  }
+
   Future<void> _addSyncColumns(Migrator m, TableInfo table) async {
-    await m.addColumn(
+    await _addColumnIfMissing(
+      m,
       table,
       table.$columns.firstWhere((c) => c.name == 'sync_id'),
     );
-    await m.addColumn(
+    await _addColumnIfMissing(
+      m,
       table,
       table.$columns.firstWhere((c) => c.name == 'server_version'),
     );
-    await m.addColumn(
+    await _addColumnIfMissing(
+      m,
       table,
       table.$columns.firstWhere((c) => c.name == 'deleted_at'),
     );
-    await m.addColumn(
+    await _addColumnIfMissing(
+      m,
       table,
       table.$columns.firstWhere((c) => c.name == 'last_synced_at'),
     );
@@ -570,6 +628,21 @@ class AppDatabase extends _$AppDatabase {
           number: Value(_string(payload['number']) ?? ''),
           city: Value(_string(payload['city']) ?? ''),
           circuitNumber: Value(_string(payload['circuitNumber']) ?? ''),
+          circuitOverseerName: Value(
+            _string(payload['circuitOverseerName']) ?? '',
+          ),
+          circuitOverseerSpouseName: Value(
+            _string(payload['circuitOverseerSpouseName']) ?? '',
+          ),
+          circuitOverseerPhone: Value(
+            _string(payload['circuitOverseerPhone']) ?? '',
+          ),
+          circuitOverseerEmail: Value(
+            _string(payload['circuitOverseerEmail']) ?? '',
+          ),
+          circuitOverseerAddress: Value(
+            _string(payload['circuitOverseerAddress']) ?? '',
+          ),
         );
         if (existingId == null) {
           await into(congregations).insert(companion);
@@ -637,8 +710,27 @@ class AppDatabase extends _$AppDatabase {
             ),
           ),
           address: Value(_string(payload['address']) ?? ''),
+          email: Value(_string(payload['email']) ?? ''),
           isActive: Value(_bool(payload['isActive']) ?? true),
           inactiveDate: Value(_date(payload['inactiveDate'])),
+          recordStatus: Value(
+            _enumAt(
+              PersonRecordStatus.values,
+              payload['recordStatus'],
+              PersonRecordStatus.current,
+            ),
+          ),
+          archiveReason: Value(
+            payload['archiveReason'] == null
+                ? null
+                : _enumAt(
+                    PersonArchiveReason.values,
+                    payload['archiveReason'],
+                    PersonArchiveReason.other,
+                  ),
+          ),
+          archivedAt: Value(_date(payload['archivedAt'])),
+          trashedAt: Value(_date(payload['trashedAt'])),
           congregationId: Value(
             await _congregationIdBySyncId(
               _string(payload['congregationSyncId']),
@@ -1035,6 +1127,11 @@ class AppDatabase extends _$AppDatabase {
     'number': row.number,
     'city': row.city,
     'circuitNumber': row.circuitNumber,
+    'circuitOverseerName': row.circuitOverseerName,
+    'circuitOverseerSpouseName': row.circuitOverseerSpouseName,
+    'circuitOverseerPhone': row.circuitOverseerPhone,
+    'circuitOverseerEmail': row.circuitOverseerEmail,
+    'circuitOverseerAddress': row.circuitOverseerAddress,
     'createdAt': row.createdAt.toUtc().toIso8601String(),
     'updatedAt': row.updatedAt.toUtc().toIso8601String(),
     'deletedAt': row.deletedAt?.toUtc().toIso8601String(),
@@ -1074,8 +1171,13 @@ class AppDatabase extends _$AppDatabase {
     'congregationRole': row.congregationRole.index,
     'pioneerType': row.pioneerType.index,
     'address': row.address,
+    'email': row.email,
     'isActive': row.isActive,
     'inactiveDate': row.inactiveDate?.toUtc().toIso8601String(),
+    'recordStatus': row.recordStatus.index,
+    'archiveReason': row.archiveReason?.index,
+    'archivedAt': row.archivedAt?.toUtc().toIso8601String(),
+    'trashedAt': row.trashedAt?.toUtc().toIso8601String(),
     'congregationSyncId': row.congregationId == null
         ? null
         : await _ensureCongregationSyncId(row.congregationId!),
@@ -1202,10 +1304,16 @@ class AppDatabase extends _$AppDatabase {
   // Person queries
   // ──────────────────────────────────────────────────
 
-  Future<List<Person>> getAllPersons({int? congregationId}) {
+  Future<List<Person>> getAllPersons({
+    int? congregationId,
+    PersonRecordStatus? recordStatus = PersonRecordStatus.current,
+  }) {
     final query = select(persons);
     if (congregationId != null) {
       query.where((p) => p.congregationId.equals(congregationId));
+    }
+    if (recordStatus != null) {
+      query.where((p) => p.recordStatus.equalsValue(recordStatus));
     }
     query.orderBy([
       (p) => OrderingTerm(expression: p.lastName),
@@ -1214,10 +1322,16 @@ class AppDatabase extends _$AppDatabase {
     return query.get();
   }
 
-  Stream<List<Person>> watchAllPersons({int? congregationId}) {
+  Stream<List<Person>> watchAllPersons({
+    int? congregationId,
+    PersonRecordStatus? recordStatus = PersonRecordStatus.current,
+  }) {
     final query = select(persons);
     if (congregationId != null) {
       query.where((p) => p.congregationId.equals(congregationId));
+    }
+    if (recordStatus != null) {
+      query.where((p) => p.recordStatus.equalsValue(recordStatus));
     }
     query.orderBy([
       (p) => OrderingTerm(expression: p.lastName),
@@ -1260,20 +1374,177 @@ class AppDatabase extends _$AppDatabase {
     return result;
   }
 
-  Future<int> deletePerson(int id) async {
-    final existing = await getPerson(id);
-    final syncId = await _ensurePersonSyncId(id);
+  Future<void> archivePerson(
+    int id, {
+    required PersonArchiveReason reason,
+    required DateTime archivedAt,
+  }) async {
+    await transaction(() async {
+      final existing = await getPerson(id);
+      if (existing.recordStatus != PersonRecordStatus.current) {
+        throw StateError('Only current publishers can be archived.');
+      }
+      await _clearPersonLeadershipAssignments(id);
+      await _updatePersonFields(
+        existing,
+        PersonsCompanion(
+          recordStatus: const Value(PersonRecordStatus.archived),
+          archiveReason: Value(reason),
+          archivedAt: Value(archivedAt),
+          trashedAt: const Value(null),
+          updatedAt: Value(DateTime.now()),
+        ),
+      );
+    });
+  }
+
+  Future<void> movePersonToTrash(int id) async {
+    await transaction(() async {
+      final existing = await getPerson(id);
+      if (existing.recordStatus == PersonRecordStatus.trashed) return;
+      await _clearPersonLeadershipAssignments(id);
+      await _updatePersonFields(
+        existing,
+        PersonsCompanion(
+          recordStatus: const Value(PersonRecordStatus.trashed),
+          trashedAt: Value(DateTime.now()),
+          updatedAt: Value(DateTime.now()),
+        ),
+      );
+    });
+  }
+
+  Future<void> restoreArchivedPerson(int id) async {
+    await transaction(() async {
+      final existing = await getPerson(id);
+      if (existing.recordStatus != PersonRecordStatus.archived) {
+        throw StateError('Only archived publishers can be restored.');
+      }
+      await _updatePersonFields(
+        existing,
+        PersonsCompanion(
+          recordStatus: const Value(PersonRecordStatus.current),
+          archiveReason: const Value(null),
+          archivedAt: const Value(null),
+          trashedAt: const Value(null),
+          updatedAt: Value(DateTime.now()),
+        ),
+      );
+    });
+  }
+
+  /// Restores a trashed publisher to the state they had before being trashed.
+  Future<PersonRecordStatus> restoreTrashedPerson(int id) async {
+    return transaction(() async {
+      final existing = await getPerson(id);
+      if (existing.recordStatus != PersonRecordStatus.trashed) {
+        throw StateError('Only trashed publishers can be restored.');
+      }
+      final destination = existing.archivedAt == null
+          ? PersonRecordStatus.current
+          : PersonRecordStatus.archived;
+      await _updatePersonFields(
+        existing,
+        PersonsCompanion(
+          recordStatus: Value(destination),
+          trashedAt: const Value(null),
+          updatedAt: Value(DateTime.now()),
+        ),
+      );
+      return destination;
+    });
+  }
+
+  /// Permanently removes a publisher and every record owned by them.
+  ///
+  /// Publishers must first be moved to Trash. Child delete operations are
+  /// queued before the publisher delete so online sync can apply them in a
+  /// referentially safe order.
+  Future<int> deletePersonPermanently(int id) async {
+    return transaction(() async {
+      final existing = await getPerson(id);
+      if (existing.recordStatus != PersonRecordStatus.trashed) {
+        throw StateError(
+          'A publisher must be moved to Trash before permanent deletion.',
+        );
+      }
+
+      await deletePhoneNumbersForPerson(id);
+      await deleteEmergencyContactsForPerson(id);
+      await deleteServiceReportsForPerson(id);
+      await deleteAuxiliaryPioneerPeriodsForPerson(id);
+      await _clearPersonLeadershipAssignments(id);
+
+      final syncId = await _ensurePersonSyncId(id);
+      await _queueOperationIfEnabled(
+        entityType: 'person',
+        entitySyncId: syncId,
+        operationType: 'delete',
+        payload: {
+          ...await _personPayload(existing),
+          'deletedAt': DateTime.now().toUtc().toIso8601String(),
+        },
+        baseServerVersion: existing.serverVersion,
+      );
+      return (delete(persons)..where((p) => p.id.equals(id))).go();
+    });
+  }
+
+  @Deprecated('Use movePersonToTrash or deletePersonPermanently instead.')
+  Future<int> deletePerson(int id) => deletePersonPermanently(id);
+
+  Future<void> _updatePersonFields(
+    Person existing,
+    PersonsCompanion fields,
+  ) async {
+    final updated = await (update(
+      persons,
+    )..where((p) => p.id.equals(existing.id))).write(fields);
+    if (updated == 0) {
+      throw StateError('Publisher ${existing.id} no longer exists.');
+    }
+    final syncId = await _ensurePersonSyncId(existing.id);
+    final row = await getPerson(existing.id);
     await _queueOperationIfEnabled(
       entityType: 'person',
       entitySyncId: syncId,
-      operationType: 'delete',
-      payload: {
-        ...await _personPayload(existing),
-        'deletedAt': DateTime.now().toUtc().toIso8601String(),
-      },
+      operationType: 'upsert',
+      payload: await _personPayload(row),
       baseServerVersion: existing.serverVersion,
     );
-    return (delete(persons)..where((p) => p.id.equals(id))).go();
+  }
+
+  Future<void> _clearPersonLeadershipAssignments(int personId) async {
+    final affected =
+        await (select(fieldServiceGroups)..where(
+              (g) =>
+                  g.groupOverseerId.equals(personId) |
+                  g.assistantId.equals(personId),
+            ))
+            .get();
+    for (final group in affected) {
+      final fields = FieldServiceGroupsCompanion(
+        groupOverseerId: group.groupOverseerId == personId
+            ? const Value(null)
+            : const Value.absent(),
+        assistantId: group.assistantId == personId
+            ? const Value(null)
+            : const Value.absent(),
+        updatedAt: Value(DateTime.now()),
+      );
+      await (update(
+        fieldServiceGroups,
+      )..where((g) => g.id.equals(group.id))).write(fields);
+      final syncId = await _ensureFieldServiceGroupSyncId(group.id);
+      final row = await getFieldServiceGroup(group.id);
+      await _queueOperationIfEnabled(
+        entityType: 'fieldServiceGroup',
+        entitySyncId: syncId,
+        operationType: 'upsert',
+        payload: await _fieldServiceGroupPayload(row),
+        baseServerVersion: group.serverVersion,
+      );
+    }
   }
 
   // ──────────────────────────────────────────────────
@@ -1445,6 +1716,9 @@ class AppDatabase extends _$AppDatabase {
     }
     if (congregationId != null || !includeInactivePublishers) {
       final personIdQuery = selectOnly(persons)..addColumns([persons.id]);
+      personIdQuery.where(
+        persons.recordStatus.equalsValue(PersonRecordStatus.current),
+      );
       if (congregationId != null) {
         personIdQuery.where(persons.congregationId.equals(congregationId));
       }
@@ -1482,6 +1756,9 @@ class AppDatabase extends _$AppDatabase {
     }
     if (congregationId != null || !includeInactivePublishers) {
       final personIdQuery = selectOnly(persons)..addColumns([persons.id]);
+      personIdQuery.where(
+        persons.recordStatus.equalsValue(PersonRecordStatus.current),
+      );
       if (congregationId != null) {
         personIdQuery.where(persons.congregationId.equals(congregationId));
       }
@@ -1642,7 +1919,9 @@ class AppDatabase extends _$AppDatabase {
     int month, {
     int? congregationId,
   }) async {
-    final personQuery = select(persons)..where((p) => p.isActive.equals(true));
+    final personQuery = select(persons)
+      ..where((p) => p.isActive.equals(true))
+      ..where((p) => p.recordStatus.equalsValue(PersonRecordStatus.current));
     if (congregationId != null) {
       personQuery.where((p) => p.congregationId.equals(congregationId));
     }
@@ -1650,7 +1929,8 @@ class AppDatabase extends _$AppDatabase {
 
     // Also include persons who became inactive during or after this month
     final inactiveQuery = select(persons)
-      ..where((p) => p.isActive.equals(false));
+      ..where((p) => p.isActive.equals(false))
+      ..where((p) => p.recordStatus.equalsValue(PersonRecordStatus.current));
     if (congregationId != null) {
       inactiveQuery.where((p) => p.congregationId.equals(congregationId));
     }
@@ -1696,7 +1976,9 @@ class AppDatabase extends _$AppDatabase {
     int month, {
     int? congregationId,
   }) async {
-    final personQuery = select(persons)..where((p) => p.isActive.equals(true));
+    final personQuery = select(persons)
+      ..where((p) => p.isActive.equals(true))
+      ..where((p) => p.recordStatus.equalsValue(PersonRecordStatus.current));
     if (congregationId != null) {
       personQuery.where((p) => p.congregationId.equals(congregationId));
     }
@@ -1760,7 +2042,9 @@ class AppDatabase extends _$AppDatabase {
   Future<CongregationAnalysis> getCongregationAnalysis({
     int? congregationId,
   }) async {
-    final personQuery = select(persons)..where((p) => p.isActive.equals(true));
+    final personQuery = select(persons)
+      ..where((p) => p.isActive.equals(true))
+      ..where((p) => p.recordStatus.equalsValue(PersonRecordStatus.current));
     if (congregationId != null) {
       personQuery.where((p) => p.congregationId.equals(congregationId));
     }
@@ -2004,6 +2288,10 @@ class AppDatabase extends _$AppDatabase {
               'address': p.address,
               'isActive': p.isActive,
               'inactiveDate': p.inactiveDate?.toIso8601String(),
+              'recordStatus': p.recordStatus.index,
+              'archiveReason': p.archiveReason?.index,
+              'archivedAt': p.archivedAt?.toIso8601String(),
+              'trashedAt': p.trashedAt?.toIso8601String(),
               'congregationId': p.congregationId,
               'fieldServiceGroupId': p.fieldServiceGroupId,
             },
@@ -2403,6 +2691,32 @@ class AppDatabase extends _$AppDatabase {
             inactiveDate: Value(
               p['inactiveDate'] != null
                   ? DateTime.tryParse(p['inactiveDate'] as String)
+                  : null,
+            ),
+            recordStatus: Value(
+              _enumAt(
+                PersonRecordStatus.values,
+                p['recordStatus'],
+                PersonRecordStatus.current,
+              ),
+            ),
+            archiveReason: Value(
+              p['archiveReason'] == null
+                  ? null
+                  : _enumAt(
+                      PersonArchiveReason.values,
+                      p['archiveReason'],
+                      PersonArchiveReason.other,
+                    ),
+            ),
+            archivedAt: Value(
+              p['archivedAt'] != null
+                  ? DateTime.tryParse(p['archivedAt'] as String)
+                  : null,
+            ),
+            trashedAt: Value(
+              p['trashedAt'] != null
+                  ? DateTime.tryParse(p['trashedAt'] as String)
                   : null,
             ),
             congregationId: Value(p['congregationId'] as int?),

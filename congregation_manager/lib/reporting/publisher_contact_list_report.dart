@@ -4,11 +4,13 @@ import 'package:congregation_manager/data/database.dart';
 import 'package:congregation_manager/reporting/pdf_styles.dart';
 
 /// Publisher Contact List Report — landscape PDF.
-/// Columns: #, Name of Publisher, Address, Phone Number(s), Field Service Group
+/// Columns: #, Name of Publisher, Address, Phone Number(s), Email,
+/// Field Service Group
 pw.Document generatePublisherContactListReport({
   required List<Person> persons,
   required Map<int, List<PhoneNumber>> phonesByPerson,
   required Map<int, FieldServiceGroup> groupsById,
+  Congregation? congregation,
 }) {
   final active = persons.where((p) => p.isActive).toList()
     ..sort(
@@ -33,12 +35,10 @@ pw.Document generatePublisherContactListReport({
       margin: const pw.EdgeInsets.all(34),
       maxPages: PdfStyles.maxPages,
       header: (context) => context.pageNumber == 1
-          ? pw.Padding(
-              padding: const pw.EdgeInsets.only(bottom: 12),
-              child: pw.Text(
-                'Publisher Contact List',
-                style: PdfStyles.title(null),
-              ),
+          ? PdfStyles.reportTitleBlock(
+              title: 'Publisher Contact List',
+              congregation: congregation,
+              showCircuitOverseer: true,
             )
           : pw.SizedBox(),
       footer: (context) => PdfStyles.pageFooter(context),
@@ -81,18 +81,28 @@ List<pw.Widget> _contactSection(
       cellStyle: const pw.TextStyle(fontSize: 9),
       cellDecoration: (index, data, rowNum) => PdfStyles.rowBorder,
       cellPadding: const pw.EdgeInsets.all(4),
+      columnWidths: {
+        0: const pw.FixedColumnWidth(22),
+        1: const pw.FlexColumnWidth(2.2),
+        2: const pw.FlexColumnWidth(3),
+        3: const pw.FlexColumnWidth(2),
+        4: const pw.FlexColumnWidth(2.4),
+        5: const pw.FlexColumnWidth(1.6),
+      },
       cellAlignments: {
         0: pw.Alignment.center,
         1: pw.Alignment.centerLeft,
         2: pw.Alignment.centerLeft,
         3: pw.Alignment.centerLeft,
         4: pw.Alignment.centerLeft,
+        5: pw.Alignment.centerLeft,
       },
       headers: [
         '#',
         'Name of Publisher',
         'Address',
         'Phone Number(s)',
+        'Email',
         'Field Service Group',
       ],
       data: List.generate(persons.length, (i) {
@@ -109,6 +119,7 @@ List<pw.Widget> _contactSection(
           formatPersonName(p.firstName, p.lastName),
           p.address.isEmpty ? '—' : p.address,
           phoneStr,
+          p.email.isEmpty ? '—' : p.email,
           group,
         ];
       }),

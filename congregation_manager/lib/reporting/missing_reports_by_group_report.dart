@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:congregation_manager/data/database.dart';
+import 'package:congregation_manager/reporting/excel_report_header.dart';
 import 'package:congregation_manager/reporting/pdf_styles.dart';
 import 'package:congregation_manager/reporting/service_report_group_data.dart';
 
@@ -38,11 +39,10 @@ pw.Document generateMissingReportsByGroupReport({
   required Map<int, FieldServiceGroup> groupsById,
   required int year,
   required int month,
+  Congregation? congregation,
 }) {
   final monthName = DateFormat.MMMM().format(DateTime(year, month));
   final subtitle = '$monthName $year';
-  final generatedAt =
-      'Generated: ${DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now())}';
 
   final buckets = _missingBuckets(
     persons: persons,
@@ -58,32 +58,14 @@ pw.Document generateMissingReportsByGroupReport({
       pageFormat: PdfPageFormat.a4,
       margin: const pw.EdgeInsets.all(34),
       maxPages: PdfStyles.maxPages,
-      header: (context) => pw.Column(
-        children: [
-          pw.Text('Missing Reports', style: PdfStyles.title(null)),
-          pw.SizedBox(height: 4),
-          pw.Text(
-            subtitle,
-            style: pw.TextStyle(fontSize: 12, color: PdfStyles.footerColor),
-          ),
-          pw.Text(
-            'Active publishers with no report submitted',
-            style: pw.TextStyle(
-              fontSize: 10,
-              fontStyle: pw.FontStyle.italic,
-              color: PdfStyles.footerColor,
-            ),
-          ),
-          pw.SizedBox(height: 15),
-        ],
+      header: (context) => PdfStyles.reportTitleBlock(
+        title: 'Missing Reports',
+        subtitle: '$subtitle — Active publishers with no report submitted',
+        congregation: congregation,
       ),
       footer: (context) => pw.Row(
         mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
         children: [
-          pw.Text(
-            generatedAt,
-            style: pw.TextStyle(fontSize: 8, color: PdfStyles.footerColor),
-          ),
           pw.Text(
             'Page ${context.pageNumber} / ${context.pagesCount}',
             style: pw.TextStyle(fontSize: 8, color: PdfStyles.footerColor),
@@ -203,6 +185,7 @@ Uint8List buildMissingReportsByGroupExcel({
   required Map<int, FieldServiceGroup> groupsById,
   required int year,
   required int month,
+  Congregation? congregation,
 }) {
   final monthName = DateFormat.MMMM().format(DateTime(year, month));
   final subtitle = '$monthName $year';
@@ -226,29 +209,25 @@ Uint8List buildMissingReportsByGroupExcel({
     if (style != null) cell.cellStyle = style;
   }
 
-  final titleStyle = CellStyle(
-    bold: true,
-    fontSize: 16,
-    fontColorHex: ExcelColor.fromHexString('#2196F3'),
-  );
   final headerStyle = CellStyle(
     bold: true,
     backgroundColorHex: ExcelColor.fromHexString('#D3D3D3'),
     horizontalAlign: HorizontalAlign.Center,
   );
 
-  put(0, 0, TextCellValue('Missing Reports — $subtitle'), style: titleStyle);
-  sheet.merge(
-    CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: 0),
-    CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: 0),
+  const headers = ['Field Service Group', 'Publisher'];
+  final headerRow = writeExcelReportHeader(
+    sheet,
+    title: 'Missing Reports — $subtitle',
+    columnSpan: headers.length,
+    congregation: congregation,
   );
 
-  const headers = ['Field Service Group', 'Publisher'];
   for (var col = 0; col < headers.length; col++) {
-    put(col, 2, TextCellValue(headers[col]), style: headerStyle);
+    put(col, headerRow, TextCellValue(headers[col]), style: headerStyle);
   }
 
-  var row = 3;
+  var row = headerRow + 1;
   for (final bucket in buckets) {
     for (final line in bucket.lines) {
       put(0, row, TextCellValue(bucket.name));

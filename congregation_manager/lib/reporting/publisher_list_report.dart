@@ -8,6 +8,7 @@ import 'package:congregation_manager/reporting/pdf_styles.dart';
 pw.Document generatePublisherListReport({
   required List<Person> persons,
   required Map<int, FieldServiceGroup> groupsById,
+  Congregation? congregation,
 }) {
   final active = persons.where((p) => p.isActive).toList()
     ..sort(
@@ -32,9 +33,9 @@ pw.Document generatePublisherListReport({
       margin: const pw.EdgeInsets.all(34),
       maxPages: PdfStyles.maxPages,
       header: (context) => context.pageNumber == 1
-          ? pw.Padding(
-              padding: const pw.EdgeInsets.only(bottom: 12),
-              child: pw.Text('Publisher List', style: PdfStyles.title(null)),
+          ? PdfStyles.reportTitleBlock(
+              title: 'Publisher List',
+              congregation: congregation,
             )
           : pw.SizedBox(),
       footer: (context) => PdfStyles.pageFooter(context),

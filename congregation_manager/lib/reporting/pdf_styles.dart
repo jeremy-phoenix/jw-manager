@@ -1,3 +1,5 @@
+import 'package:congregation_manager/data/database.dart';
+import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
@@ -53,6 +55,87 @@ class PdfStyles {
         alignment: alignment ?? pw.Alignment.centerLeft,
         child: pw.Text(text, style: const pw.TextStyle(fontSize: fontSize)),
       );
+
+  /// Report title block: title, optional subtitle, congregation identity with
+  /// generated-on timestamp, and optionally the circuit overseer contact line.
+  static pw.Widget reportTitleBlock({
+    required String title,
+    String? subtitle,
+    Congregation? congregation,
+    bool showCircuitOverseer = false,
+    DateTime? generatedAt,
+  }) {
+    final identity = congregationIdentityLine(congregation, generatedAt);
+    final overseer = showCircuitOverseer
+        ? circuitOverseerSummary(congregation)
+        : null;
+    return pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: [
+        pw.Text(title, style: PdfStyles.title(null)),
+        if (subtitle != null) ...[
+          pw.SizedBox(height: 2),
+          pw.Text(
+            subtitle,
+            style: pw.TextStyle(fontSize: 12, color: footerColor),
+          ),
+        ],
+        pw.SizedBox(height: 2),
+        pw.Text(
+          identity,
+          style: pw.TextStyle(fontSize: 9, color: footerColor),
+        ),
+        if (overseer != null) ...[
+          pw.SizedBox(height: 2),
+          pw.Text(
+            overseer,
+            style: pw.TextStyle(fontSize: 9, color: footerColor),
+          ),
+        ],
+        pw.SizedBox(height: 12),
+      ],
+    );
+  }
+
+  /// "`name` Congregation (No. `number`) — Generated: yyyy-MM-dd HH:mm",
+  /// omitting blank segments; only the generated part when no congregation.
+  static String congregationIdentityLine(
+    Congregation? congregation,
+    DateTime? generatedAt,
+  ) {
+    final generated =
+        'Generated: '
+        '${DateFormat('yyyy-MM-dd HH:mm').format(generatedAt ?? DateTime.now())}';
+    final name = congregation?.name.trim() ?? '';
+    final number = congregation?.number.trim() ?? '';
+    if (name.isEmpty && number.isEmpty) return generated;
+    final identity = [
+      if (name.isNotEmpty) '$name Congregation',
+      if (number.isNotEmpty) '(No. $number)',
+    ].join(' ');
+    return '$identity — $generated';
+  }
+
+  /// "Circuit Overseer: John Smith & Jane Smith · (555) 123-4567 · j@x.com".
+  /// Returns null when name, spouse, phone and email are all blank.
+  static String? circuitOverseerSummary(Congregation? congregation) {
+    if (congregation == null) return null;
+    final name = congregation.circuitOverseerName.trim();
+    final spouse = congregation.circuitOverseerSpouseName.trim();
+    final phone = congregation.circuitOverseerPhone.trim();
+    final email = congregation.circuitOverseerEmail.trim();
+    final namePart = [
+      if (name.isNotEmpty) name,
+      if (spouse.isNotEmpty) spouse,
+    ].join(' & ');
+    final parts = [
+      if (namePart.isNotEmpty) namePart,
+      if (phone.isNotEmpty) phone,
+      if (email.isNotEmpty) email,
+    ];
+    if (parts.isEmpty) return null;
+    return 'Circuit Overseer: ${parts.join(' · ')}';
+  }
 
   static pw.Widget pageFooter(pw.Context context, {String? leftText}) => pw.Row(
     mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,

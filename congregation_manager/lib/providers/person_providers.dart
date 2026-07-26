@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:congregation_manager/data/database.dart';
+import 'package:congregation_manager/data/enums.dart';
 import 'package:congregation_manager/providers/congregation_providers.dart';
 import 'package:congregation_manager/providers/database_provider.dart';
 
@@ -8,6 +9,26 @@ final personsProvider = StreamProvider<List<Person>>((ref) {
   final db = ref.watch(databaseProvider);
   final congId = ref.watch(currentCongregationIdProvider);
   return db.watchAllPersons(congregationId: congId);
+});
+
+/// Archived publisher records for the current congregation.
+final archivedPersonsProvider = StreamProvider<List<Person>>((ref) {
+  final db = ref.watch(databaseProvider);
+  final congId = ref.watch(currentCongregationIdProvider);
+  return db.watchAllPersons(
+    congregationId: congId,
+    recordStatus: PersonRecordStatus.archived,
+  );
+});
+
+/// Trashed publisher records for the current congregation.
+final trashedPersonsProvider = StreamProvider<List<Person>>((ref) {
+  final db = ref.watch(databaseProvider);
+  final congId = ref.watch(currentCongregationIdProvider);
+  return db.watchAllPersons(
+    congregationId: congId,
+    recordStatus: PersonRecordStatus.trashed,
+  );
 });
 
 /// Provides a single person by ID.
