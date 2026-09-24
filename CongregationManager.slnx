@@ -3,6 +3,6 @@
     <File Path=".editorconfig" />
     <File Path="Directory.Build.props" />
   </Folder>
-  <Project Path="CongregationManager.Shared/CongregationManager.Shared.csproj" />
-  <Project Path="CongregationManager.Web/CongregationManager.Web.csproj" />
+  <Project Path="CongregationManager.Server/CongregationManager.Server.csproj" />
+  <Project Path="CongregationManager.Server.Tests/CongregationManager.Server.Tests.csproj" />
 </Solution>

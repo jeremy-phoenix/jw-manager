@@ -452,3 +452,8 @@ $RECYCLE.BIN/
 !.vscode/tasks.json
 !.vscode/launch.json
 !.vscode/extensions.json
+
+# Sync server databases created by local runs (never commit them)
+CongregationManager.Server/*.db
+CongregationManager.Server/*.db-shm
+CongregationManager.Server/*.db-wal

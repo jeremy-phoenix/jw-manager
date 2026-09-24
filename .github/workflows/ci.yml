@@ -49,7 +49,7 @@ jobs:
         run: flutter test
 
   dotnet:
-    name: Build .NET API
+    name: Build and test sync server
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
@@ -63,5 +63,10 @@ jobs:
       - name: Restore .NET solution
         run: dotnet restore ${{ env.DOTNET_SOLUTION }}
 
+      # Warnings are errors, so NuGet audit also fails the build on
+      # vulnerable (including transitive) packages.
       - name: Build .NET solution
         run: dotnet build ${{ env.DOTNET_SOLUTION }} --configuration Release --no-restore
+
+      - name: Test sync server
+        run: dotnet test ${{ env.DOTNET_SOLUTION }} --configuration Release --no-build

@@ -1,0 +1,15 @@
+# /etc/caddy/Caddyfile — Caddy obtains and renews the TLS certificate itself
+# and forwards X-Forwarded-For / X-Forwarded-Proto to the app.
+sync.example.org {
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		-Server
+	}
+
+	request_body {
+		max_size 16MB
+	}
+
+	reverse_proxy 127.0.0.1:5080
+}

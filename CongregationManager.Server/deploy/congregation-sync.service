@@ -1,0 +1,44 @@
+# /etc/systemd/system/congregation-sync.service
+[Unit]
+Description=Congregation Manager encrypted sync server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=congregation-sync
+Group=congregation-sync
+WorkingDirectory=/opt/congregation-sync
+ExecStart=/usr/bin/dotnet /opt/congregation-sync/CongregationManager.Server.dll
+# Secrets and settings; root-owned, mode 600 (systemd reads it as root).
+EnvironmentFile=/etc/congregation-sync/congregation-sync.env
+Environment=ASPNETCORE_ENVIRONMENT=Production
+Environment=DOTNET_NOLOGO=1
+Restart=on-failure
+RestartSec=5
+
+# Sandboxing: the service can only write its own data directory.
+NoNewPrivileges=true
+UMask=0077
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/congregation-sync
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+SystemCallArchitectures=native
+CapabilityBoundingSet=
+# MemoryDenyWriteExecute is left off on purpose: the .NET JIT needs it.
+
+[Install]
+WantedBy=multi-user.target

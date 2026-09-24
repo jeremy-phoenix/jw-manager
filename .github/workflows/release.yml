@@ -17,7 +17,7 @@ concurrency:
 env:
   DOTNET_VERSION: 10.0.x
   DOTNET_SOLUTION: CongregationManager.slnx
-  API_PROJECT: CongregationManager.Web/CongregationManager.Web.csproj
+  API_PROJECT: CongregationManager.Server/CongregationManager.Server.csproj
 
 jobs:
   flutter-verify:
@@ -109,7 +109,7 @@ jobs:
         if: matrix.platform == 'linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libsqlite3-dev
+          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libsqlite3-dev libsecret-1-dev
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
