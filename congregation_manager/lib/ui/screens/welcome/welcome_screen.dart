@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:congregation_manager/data/database.dart';
 import 'package:congregation_manager/providers/congregation_providers.dart';
 import 'package:congregation_manager/providers/database_provider.dart';
+import 'package:congregation_manager/ui/screens/settings/sync/sync_setup_dialogs.dart';
 
 class WelcomeScreen extends ConsumerStatefulWidget {
   const WelcomeScreen({super.key});
@@ -141,12 +142,50 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
                     ),
                   ),
                 ),
+                const SizedBox(height: 24),
+                Text(
+                  'Already using encrypted sync on another device?',
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  alignment: WrapAlignment.center,
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    OutlinedButton.icon(
+                      icon: const Icon(Icons.qr_code_2),
+                      label: const Text('Join with an invite'),
+                      onPressed: _saving
+                          ? null
+                          : () => _join(showJoinWithInviteDialog(context)),
+                    ),
+                    TextButton.icon(
+                      icon: const Icon(Icons.key_outlined),
+                      label: const Text('Use the recovery code'),
+                      onPressed: _saving
+                          ? null
+                          : () => _join(showRecoverWithCodeDialog(context)),
+                    ),
+                  ],
+                ),
               ],
             ),
           ),
         ),
       ),
     );
+  }
+
+  Future<void> _join(Future<bool> dialog) async {
+    if (!await dialog || !mounted) return;
+    await ensureValidCongregationSelection(ref);
+    if (mounted && ref.read(currentCongregationIdProvider) != null) {
+      context.go('/home');
+    }
   }
 
   Future<void> _submit() async {

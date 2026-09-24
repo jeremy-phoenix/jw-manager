@@ -118,13 +118,25 @@ class AuxiliaryPioneerPeriods extends Table with SyncColumns {
   IntColumn get personId => integer().references(Persons, #id)();
 }
 
+/// Non-secret sync state. The device token and vault keys are kept in the
+/// operating system's credential store (see SyncCredentialStore), never here,
+/// so copies of the database file do not carry them.
 class SyncSettings extends Table {
   IntColumn get id => integer().withDefault(const Constant(1))();
+
+  /// True while this database is enrolled in a vault.
   BoolColumn get isEnabled => boolean().withDefault(const Constant(false))();
   TextColumn get serverUrl => text().nullable()();
-  TextColumn get bearerToken => text().nullable()();
+  TextColumn get vaultId => text().nullable()();
   TextColumn get deviceId => text().nullable()();
-  TextColumn get pullCursor => text().nullable()();
+  TextColumn get deviceLabel => text().nullable()();
+  IntColumn get currentKeyId => integer().nullable()();
+
+  /// The vault key was rotated and this device does not have the new key.
+  BoolColumn get needsKey => boolean().withDefault(const Constant(false))();
+
+  /// Last change-feed sequence number applied locally.
+  IntColumn get pullSeq => integer().withDefault(const Constant(0))();
   DateTimeColumn get lastSyncAt => dateTime().nullable()();
   TextColumn get lastError => text().nullable()();
 
@@ -132,6 +144,13 @@ class SyncSettings extends Table {
   Set<Column> get primaryKey => {id};
 }
 
+/// One row per record with unsynced local changes. The payload always holds
+/// the record's full latest state; the base version is the server version
+/// the first unsynced edit started from.
+@TableIndex(
+  name: 'pending_sync_operations_entity_sync_id',
+  columns: {#entitySyncId},
+)
 class PendingSyncOperations extends Table {
   IntColumn get id => integer().autoIncrement()();
   TextColumn get operationId => text()();
@@ -146,6 +165,9 @@ class PendingSyncOperations extends Table {
   TextColumn get lastError => text().nullable()();
 }
 
+/// A local change the server rejected because another device changed the
+/// record first. The server version was applied; the local one is kept here
+/// so it can be restored.
 class SyncConflicts extends Table {
   IntColumn get id => integer().autoIncrement()();
   TextColumn get entityType => text()();
@@ -155,4 +177,15 @@ class SyncConflicts extends Table {
   IntColumn get serverVersion => integer()();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get resolvedAt => dateTime().nullable()();
+}
+
+/// Pulled records whose parent (the publisher) has not arrived yet. They
+/// are retried on every sync instead of being dropped.
+class DeferredRemoteChanges extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get entityType => text()();
+  TextColumn get entitySyncId => text().unique()();
+  IntColumn get serverVersion => integer()();
+  TextColumn get payloadJson => text()();
+  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
 }

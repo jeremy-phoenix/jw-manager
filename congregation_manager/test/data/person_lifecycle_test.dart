@@ -120,9 +120,13 @@ void main() {
     'archive and Trash sync as upserts; purge syncs child deletes first',
     () async {
       final fixture = await _createPublisherFixture(db);
-      await db.saveSyncSettings(
-        isEnabled: true,
+      await db.activateSyncVault(
         serverUrl: 'https://example.com',
+        vaultId: '00000000-0000-4000-8000-000000000001',
+        deviceId: '00000000-0000-4000-8000-000000000002',
+        deviceLabel: 'Test device',
+        keyId: 1,
+        uploadLocalData: false,
       );
       await db.delete(db.pendingSyncOperations).go();
 

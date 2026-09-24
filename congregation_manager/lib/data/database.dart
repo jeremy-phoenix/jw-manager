@@ -1,11 +1,13 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 
 import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
 import 'package:congregation_manager/data/tables.dart';
 import 'package:congregation_manager/data/enums.dart';
 import 'package:congregation_manager/data/statistics.dart';
+import 'package:congregation_manager/data/sync_models.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
@@ -38,6 +40,7 @@ class DatabaseLocationInfo {
     SyncSettings,
     PendingSyncOperations,
     SyncConflicts,
+    DeferredRemoteChanges,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -56,7 +59,7 @@ class AppDatabase extends _$AppDatabase {
   static const _databaseSidecarSuffixes = ['', '-wal', '-shm', '-journal'];
 
   @override
-  int get schemaVersion => 6;
+  int get schemaVersion => 8;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -113,8 +116,62 @@ class AppDatabase extends _$AppDatabase {
         await _addColumnIfMissing(m, persons, persons.archivedAt);
         await _addColumnIfMissing(m, persons, persons.trashedAt);
       }
+      if (from < 8) {
+        await _migrateToEncryptedSync(m);
+      }
     },
   );
+
+  /// v8 replaces plaintext sync (shared token stored in this database, a
+  /// server that parsed every field) with end-to-end encrypted sync. The old
+  /// token, queue, conflicts and server versions are all discarded; only the
+  /// server address is kept as a hint. Each step is safe to re-run.
+  Future<void> _migrateToEncryptedSync(Migrator m) async {
+    final columns = await _columnNames(syncSettings.actualTableName);
+    if (!columns.contains('vault_id')) {
+      String? serverUrl;
+      if (columns.contains('server_url')) {
+        final row = await customSelect(
+          'SELECT server_url FROM sync_settings WHERE id = 1',
+        ).getSingleOrNull();
+        serverUrl = row?.readNullable<String>('server_url');
+      }
+      await customStatement('DROP TABLE IF EXISTS sync_settings');
+      await m.createTable(syncSettings);
+      await into(
+        syncSettings,
+      ).insert(SyncSettingsCompanion.insert(serverUrl: Value(serverUrl)));
+    }
+    if ((await _columnNames(deferredRemoteChanges.actualTableName)).isEmpty) {
+      await m.createTable(deferredRemoteChanges);
+    }
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS pending_sync_operations_entity_sync_id '
+      'ON pending_sync_operations (entity_sync_id)',
+    );
+    await customStatement('DELETE FROM pending_sync_operations');
+    await customStatement('DELETE FROM sync_conflicts');
+    for (final table in <TableInfo>[
+      congregations,
+      fieldServiceGroups,
+      persons,
+      phoneNumbers,
+      emergencyContacts,
+      serviceReports,
+      auxiliaryPioneerPeriods,
+    ]) {
+      // The server stores record ids as lowercase UUIDs.
+      await customStatement(
+        'UPDATE ${table.actualTableName} '
+        'SET server_version = 0, last_synced_at = NULL, sync_id = lower(sync_id)',
+      );
+    }
+  }
+
+  Future<Set<String>> _columnNames(String table) async {
+    final rows = await customSelect('PRAGMA table_info($table)').get();
+    return {for (final row in rows) row.read<String>('name')};
+  }
 
   /// Adds [column] unless the table already has it. Drift runs migrations
   /// without a transaction, so an interrupted upgrade can leave columns
@@ -339,151 +396,304 @@ class AppDatabase extends _$AppDatabase {
   }
 
   // ──────────────────────────────────────────────────
-  // Sync settings and queue helpers
+  // Online sync: settings and enrollment
   // ──────────────────────────────────────────────────
 
-  Future<SyncSetting> getSyncSettings() async => _ensureSyncSettings();
+  static const _upsertOrder = [
+    SyncEntityTypes.congregation,
+    SyncEntityTypes.fieldServiceGroup,
+    SyncEntityTypes.person,
+    SyncEntityTypes.phoneNumber,
+    SyncEntityTypes.emergencyContact,
+    SyncEntityTypes.serviceReport,
+    SyncEntityTypes.auxiliaryPioneerPeriod,
+  ];
+
+  static const _deleteOrder = [
+    SyncEntityTypes.phoneNumber,
+    SyncEntityTypes.emergencyContact,
+    SyncEntityTypes.serviceReport,
+    SyncEntityTypes.auxiliaryPioneerPeriod,
+    SyncEntityTypes.person,
+    SyncEntityTypes.fieldServiceGroup,
+    SyncEntityTypes.congregation,
+  ];
+
+  Future<SyncSetting> getSyncSettings() => _ensureSyncSettings();
 
   Stream<SyncSetting> watchSyncSettings() async* {
     await _ensureSyncSettings();
-    yield* select(syncSettings).watchSingle();
+    yield* (select(syncSettings)..where((s) => s.id.equals(1))).watchSingle();
   }
 
-  Future<SyncSetting> saveSyncSettings({
-    required bool isEnabled,
+  /// Enrolls this database in a vault. Leftover sync bookkeeping is discarded
+  /// and every record starts again from server version 0. For a brand-new
+  /// vault, [uploadLocalData] queues every local record for upload.
+  Future<void> activateSyncVault({
     required String serverUrl,
-    String? bearerToken,
-  }) async {
-    final current = await _ensureSyncSettings();
-    final shouldQueueInitialSnapshot = isEnabled && !current.isEnabled;
-    await into(syncSettings).insertOnConflictUpdate(
+    required String vaultId,
+    required String deviceId,
+    required String deviceLabel,
+    required int keyId,
+    required bool uploadLocalData,
+    bool needsKey = false,
+  }) => transaction(() async {
+    await _clearSyncBookkeeping();
+    await _resetSyncVersions();
+    await _updateSyncSettings(
       SyncSettingsCompanion(
-        id: const Value(1),
-        isEnabled: Value(isEnabled),
-        serverUrl: Value(serverUrl.trim().isEmpty ? null : serverUrl.trim()),
-        bearerToken: Value(
-          bearerToken == null || bearerToken.trim().isEmpty
-              ? null
-              : bearerToken.trim(),
-        ),
-        deviceId: Value(current.deviceId),
-        pullCursor: Value(current.pullCursor),
-        lastSyncAt: Value(current.lastSyncAt),
+        isEnabled: const Value(true),
+        serverUrl: Value(serverUrl),
+        vaultId: Value(vaultId),
+        deviceId: Value(deviceId),
+        deviceLabel: Value(deviceLabel),
+        currentKeyId: Value(keyId),
+        needsKey: Value(needsKey),
+        pullSeq: const Value(0),
+        lastSyncAt: const Value(null),
         lastError: const Value(null),
       ),
     );
-    if (shouldQueueInitialSnapshot) {
-      await queueLocalSnapshotForSync();
-    }
-    return _ensureSyncSettings();
+    if (uploadLocalData) await queueLocalSnapshotForSync();
+  });
+
+  /// Leaves the vault. Local data stays; the server address is remembered.
+  Future<void> deactivateSyncVault() => transaction(() async {
+    await _clearSyncBookkeeping();
+    await _resetSyncVersions();
+    await _updateSyncSettings(
+      const SyncSettingsCompanion(
+        isEnabled: Value(false),
+        vaultId: Value(null),
+        deviceId: Value(null),
+        deviceLabel: Value(null),
+        currentKeyId: Value(null),
+        needsKey: Value(false),
+        pullSeq: Value(0),
+        lastSyncAt: Value(null),
+        lastError: Value(null),
+      ),
+    );
+  });
+
+  Future<void> updateSyncServerUrl(String serverUrl) =>
+      _updateSyncSettings(SyncSettingsCompanion(serverUrl: Value(serverUrl)));
+
+  Future<void> updateSyncDeviceLabel(String label) =>
+      _updateSyncSettings(SyncSettingsCompanion(deviceLabel: Value(label)));
+
+  Future<void> setSyncKeyState({
+    required int currentKeyId,
+    required bool needsKey,
+  }) => _updateSyncSettings(
+    SyncSettingsCompanion(
+      currentKeyId: Value(currentKeyId),
+      needsKey: Value(needsKey),
+    ),
+  );
+
+  Future<void> setSyncNeedsKey(bool needsKey) =>
+      _updateSyncSettings(SyncSettingsCompanion(needsKey: Value(needsKey)));
+
+  Future<void> recordSyncSuccess() => _updateSyncSettings(
+    SyncSettingsCompanion(
+      lastSyncAt: Value(DateTime.now().toUtc()),
+      lastError: const Value(null),
+    ),
+  );
+
+  Future<void> recordSyncError(String error) =>
+      _updateSyncSettings(SyncSettingsCompanion(lastError: Value(error)));
+
+  /// Whether this device holds any congregation records.
+  Future<bool> hasLocalCongregationData() async {
+    final congregation = await (select(
+      congregations,
+    )..limit(1)).getSingleOrNull();
+    if (congregation != null) return true;
+    final person = await (select(persons)..limit(1)).getSingleOrNull();
+    return person != null;
   }
 
-  Future<void> queueLocalSnapshotForSync() async {
-    await _ensureAllLocalSyncIds();
+  /// Removes every congregation record from this device, without queueing
+  /// anything, so a vault being joined can replace it.
+  Future<void> clearLocalDataForSyncJoin() => transaction(() async {
+    await delete(auxiliaryPioneerPeriods).go();
+    await delete(emergencyContacts).go();
+    await delete(phoneNumbers).go();
+    await delete(serviceReports).go();
+    await delete(persons).go();
+    await delete(fieldServiceGroups).go();
+    await delete(congregations).go();
+    await _clearSyncBookkeeping();
+  });
 
-    for (final row in await select(congregations).get()) {
-      await _queueOperationIfEnabled(
-        entityType: 'congregation',
-        entitySyncId: row.syncId!,
-        operationType: 'upsert',
-        payload: _congregationPayload(row),
-        baseServerVersion: row.serverVersion,
-      );
-    }
-    for (final row in await select(fieldServiceGroups).get()) {
-      await _queueOperationIfEnabled(
-        entityType: 'fieldServiceGroup',
-        entitySyncId: row.syncId!,
-        operationType: 'upsert',
-        payload: await _fieldServiceGroupPayload(row),
-        baseServerVersion: row.serverVersion,
-      );
-    }
-    for (final row in await select(persons).get()) {
-      await _queueOperationIfEnabled(
-        entityType: 'person',
-        entitySyncId: row.syncId!,
-        operationType: 'upsert',
-        payload: await _personPayload(row),
-        baseServerVersion: row.serverVersion,
-      );
-    }
-    for (final row in await select(phoneNumbers).get()) {
-      await _queueOperationIfEnabled(
-        entityType: 'phoneNumber',
-        entitySyncId: row.syncId!,
-        operationType: 'upsert',
-        payload: await _phoneNumberPayload(row),
-        baseServerVersion: row.serverVersion,
-      );
-    }
-    for (final row in await select(emergencyContacts).get()) {
-      await _queueOperationIfEnabled(
-        entityType: 'emergencyContact',
-        entitySyncId: row.syncId!,
-        operationType: 'upsert',
-        payload: await _emergencyContactPayload(row),
-        baseServerVersion: row.serverVersion,
-      );
-    }
-    for (final row in await select(serviceReports).get()) {
-      await _queueOperationIfEnabled(
-        entityType: 'serviceReport',
-        entitySyncId: row.syncId!,
-        operationType: 'upsert',
-        payload: await _serviceReportPayload(row),
-        baseServerVersion: row.serverVersion,
-      );
-    }
-    for (final row in await select(auxiliaryPioneerPeriods).get()) {
-      await _queueOperationIfEnabled(
-        entityType: 'auxiliaryPioneerPeriod',
-        entitySyncId: row.syncId!,
-        operationType: 'upsert',
-        payload: await _auxiliaryPioneerPeriodPayload(row),
-        baseServerVersion: row.serverVersion,
-      );
-    }
+  Future<SyncSetting> _ensureSyncSettings() async {
+    final existing = await (select(
+      syncSettings,
+    )..where((s) => s.id.equals(1))).getSingleOrNull();
+    if (existing != null) return existing;
+    await into(syncSettings).insert(
+      const SyncSettingsCompanion(id: Value(1)),
+      mode: InsertMode.insertOrIgnore,
+    );
+    return (select(syncSettings)..where((s) => s.id.equals(1))).getSingle();
   }
 
-  Future<void> recordSyncSuccess({String? pullCursor}) async {
-    final current = await _ensureSyncSettings();
-    await into(syncSettings).insertOnConflictUpdate(
-      current
-          .toCompanion(false)
-          .copyWith(
-            lastSyncAt: Value(DateTime.now().toUtc()),
-            pullCursor: Value(pullCursor ?? current.pullCursor),
-            lastError: const Value(null),
-          ),
+  Future<void> _updateSyncSettings(SyncSettingsCompanion fields) async {
+    await _ensureSyncSettings();
+    await (update(syncSettings)..where((s) => s.id.equals(1))).write(fields);
+  }
+
+  Future<void> _clearSyncBookkeeping() async {
+    await delete(pendingSyncOperations).go();
+    await delete(deferredRemoteChanges).go();
+    await delete(syncConflicts).go();
+  }
+
+  /// Forgets server versions, e.g. when switching to a different vault.
+  Future<void> _resetSyncVersions() async {
+    await update(congregations).write(
+      const CongregationsCompanion(
+        serverVersion: Value(0),
+        lastSyncedAt: Value(null),
+      ),
+    );
+    await update(fieldServiceGroups).write(
+      const FieldServiceGroupsCompanion(
+        serverVersion: Value(0),
+        lastSyncedAt: Value(null),
+      ),
+    );
+    await update(persons).write(
+      const PersonsCompanion(
+        serverVersion: Value(0),
+        lastSyncedAt: Value(null),
+      ),
+    );
+    await update(phoneNumbers).write(
+      const PhoneNumbersCompanion(
+        serverVersion: Value(0),
+        lastSyncedAt: Value(null),
+      ),
+    );
+    await update(emergencyContacts).write(
+      const EmergencyContactsCompanion(
+        serverVersion: Value(0),
+        lastSyncedAt: Value(null),
+      ),
+    );
+    await update(serviceReports).write(
+      const ServiceReportsCompanion(
+        serverVersion: Value(0),
+        lastSyncedAt: Value(null),
+      ),
+    );
+    await update(auxiliaryPioneerPeriods).write(
+      const AuxiliaryPioneerPeriodsCompanion(
+        serverVersion: Value(0),
+        lastSyncedAt: Value(null),
+      ),
     );
   }
 
-  Future<void> recordSyncError(String error) async {
-    final current = await _ensureSyncSettings();
-    await into(syncSettings).insertOnConflictUpdate(
-      current.toCompanion(false).copyWith(lastError: Value(error)),
-    );
-  }
+  // ──────────────────────────────────────────────────
+  // Online sync: outgoing changes
+  // ──────────────────────────────────────────────────
+
+  /// Queues local records for upload, parents before children. With
+  /// [onlyUnsynced], only records the server has never seen are queued.
+  Future<void> queueLocalSnapshotForSync({bool onlyUnsynced = false}) =>
+      transaction(() async {
+        await _ensureAllLocalSyncIds();
+        bool include(int serverVersion) => !onlyUnsynced || serverVersion == 0;
+
+        for (final row in await select(congregations).get()) {
+          if (!include(row.serverVersion)) continue;
+          await _queueOperationIfEnabled(
+            entityType: SyncEntityTypes.congregation,
+            entitySyncId: row.syncId!,
+            operationType: 'upsert',
+            payload: _congregationPayload(row),
+            baseServerVersion: row.serverVersion,
+          );
+        }
+        for (final row in await select(fieldServiceGroups).get()) {
+          if (!include(row.serverVersion)) continue;
+          await _queueOperationIfEnabled(
+            entityType: SyncEntityTypes.fieldServiceGroup,
+            entitySyncId: row.syncId!,
+            operationType: 'upsert',
+            payload: await _fieldServiceGroupPayload(row),
+            baseServerVersion: row.serverVersion,
+          );
+        }
+        for (final row in await select(persons).get()) {
+          if (!include(row.serverVersion)) continue;
+          await _queueOperationIfEnabled(
+            entityType: SyncEntityTypes.person,
+            entitySyncId: row.syncId!,
+            operationType: 'upsert',
+            payload: await _personPayload(row),
+            baseServerVersion: row.serverVersion,
+          );
+        }
+        for (final row in await select(phoneNumbers).get()) {
+          if (!include(row.serverVersion)) continue;
+          await _queueOperationIfEnabled(
+            entityType: SyncEntityTypes.phoneNumber,
+            entitySyncId: row.syncId!,
+            operationType: 'upsert',
+            payload: await _phoneNumberPayload(row),
+            baseServerVersion: row.serverVersion,
+          );
+        }
+        for (final row in await select(emergencyContacts).get()) {
+          if (!include(row.serverVersion)) continue;
+          await _queueOperationIfEnabled(
+            entityType: SyncEntityTypes.emergencyContact,
+            entitySyncId: row.syncId!,
+            operationType: 'upsert',
+            payload: await _emergencyContactPayload(row),
+            baseServerVersion: row.serverVersion,
+          );
+        }
+        for (final row in await select(serviceReports).get()) {
+          if (!include(row.serverVersion)) continue;
+          await _queueOperationIfEnabled(
+            entityType: SyncEntityTypes.serviceReport,
+            entitySyncId: row.syncId!,
+            operationType: 'upsert',
+            payload: await _serviceReportPayload(row),
+            baseServerVersion: row.serverVersion,
+          );
+        }
+        for (final row in await select(auxiliaryPioneerPeriods).get()) {
+          if (!include(row.serverVersion)) continue;
+          await _queueOperationIfEnabled(
+            entityType: SyncEntityTypes.auxiliaryPioneerPeriod,
+            entitySyncId: row.syncId!,
+            operationType: 'upsert',
+            payload: await _auxiliaryPioneerPeriodPayload(row),
+            baseServerVersion: row.serverVersion,
+          );
+        }
+      });
 
   Future<int> getPendingSyncOperationCount() async {
-    final rows = await select(pendingSyncOperations).get();
-    return rows.length;
+    final count = pendingSyncOperations.id.count();
+    final row = await (selectOnly(
+      pendingSyncOperations,
+    )..addColumns([count])).getSingle();
+    return row.read(count) ?? 0;
   }
 
-  Stream<int> watchPendingSyncOperationCount() =>
-      select(pendingSyncOperations).watch().map((rows) => rows.length);
-
-  Future<int> getOpenSyncConflictCount() async {
-    final rows = await (select(
-      syncConflicts,
-    )..where((c) => c.resolvedAt.isNull())).get();
-    return rows.length;
+  Stream<int> watchPendingSyncOperationCount() {
+    final count = pendingSyncOperations.id.count();
+    return (selectOnly(
+      pendingSyncOperations,
+    )..addColumns([count])).map((row) => row.read(count) ?? 0).watchSingle();
   }
-
-  Stream<int> watchOpenSyncConflictCount() => (select(
-    syncConflicts,
-  )..where((c) => c.resolvedAt.isNull())).watch().map((rows) => rows.length);
 
   Future<List<PendingSyncOperation>> getPendingSyncOperations({
     int limit = 50,
@@ -492,9 +702,6 @@ class AppDatabase extends _$AppDatabase {
             ..orderBy([(o) => OrderingTerm.asc(o.id)])
             ..limit(limit))
           .get();
-
-  Future<void> markSyncOperationSucceeded(int id) =>
-      (delete(pendingSyncOperations)..where((o) => o.id.equals(id))).go();
 
   Future<void> markSyncOperationFailed(int id, String error) async {
     final operation = await (select(
@@ -511,421 +718,714 @@ class AppDatabase extends _$AppDatabase {
     );
   }
 
-  Future<void> recordSyncConflict({
-    required String entityType,
-    required String entitySyncId,
-    required Map<String, dynamic> localPayload,
-    required Map<String, dynamic> serverPayload,
-    required int serverVersion,
-  }) async {
+  /// Records that the server accepted [sent] as [version].
+  Future<void> completePushedOperation(
+    PendingSyncOperation sent,
+    int version,
+  ) => transaction(() async {
+    if (version > 0) {
+      await markEntitySynced(
+        entityType: sent.entityType,
+        entitySyncId: sent.entitySyncId,
+        serverVersion: version,
+      );
+    }
+    final current = await (select(
+      pendingSyncOperations,
+    )..where((o) => o.id.equals(sent.id))).getSingleOrNull();
+    if (current == null) return;
+    if (current.operationId == sent.operationId) {
+      await (delete(
+        pendingSyncOperations,
+      )..where((o) => o.id.equals(sent.id))).go();
+    } else {
+      // Edited again while the push was in flight: that newer change now
+      // builds on the version the server just accepted.
+      await (update(
+        pendingSyncOperations,
+      )..where((o) => o.id.equals(sent.id))).write(
+        PendingSyncOperationsCompanion(baseServerVersion: Value(version)),
+      );
+    }
+  });
+
+  /// Handles a push the server rejected because the record changed there
+  /// first. The server copy wins locally; the local copy is kept as a
+  /// conflict that can be restored. A null [server] means the server has no
+  /// copy at all, so the record is sent again as new.
+  Future<void> resolvePushConflict(
+    PendingSyncOperation sent, {
+    RemoteChange? server,
+  }) => transaction(() async {
+    final current = await (select(
+      pendingSyncOperations,
+    )..where((o) => o.id.equals(sent.id))).getSingleOrNull();
+
+    if (server == null) {
+      await markEntitySynced(
+        entityType: sent.entityType,
+        entitySyncId: sent.entitySyncId,
+        serverVersion: 0,
+      );
+      if (current != null) {
+        await (update(
+          pendingSyncOperations,
+        )..where((o) => o.id.equals(sent.id))).write(
+          const PendingSyncOperationsCompanion(baseServerVersion: Value(0)),
+        );
+      }
+      return;
+    }
+
+    final local = current ?? sent;
     await into(syncConflicts).insert(
       SyncConflictsCompanion.insert(
-        entityType: entityType,
-        entitySyncId: entitySyncId,
-        localPayloadJson: jsonEncode(localPayload),
-        serverPayloadJson: jsonEncode(serverPayload),
-        serverVersion: serverVersion,
+        entityType: local.entityType,
+        entitySyncId: local.entitySyncId,
+        localPayloadJson: jsonEncode({
+          'operationType': local.operationType,
+          'payload': jsonDecode(local.payloadJson),
+        }),
+        serverPayloadJson: jsonEncode({
+          'deleted': server.deleted,
+          'payload': server.payload,
+        }),
+        serverVersion: server.version,
       ),
     );
-  }
+    if (current != null) {
+      await (delete(
+        pendingSyncOperations,
+      )..where((o) => o.id.equals(sent.id))).go();
+    }
+    await _applyRemoteBatch(
+      [server],
+      retryDeferred: false,
+      respectPending: false,
+    );
+  });
 
   Future<void> markEntitySynced({
     required String entityType,
     required String entitySyncId,
     required int serverVersion,
   }) async {
-    final syncedAt = DateTime.now().toUtc();
+    final syncedAt = Value(DateTime.now().toUtc());
     switch (entityType) {
-      case 'congregation':
+      case SyncEntityTypes.congregation:
         await (update(
           congregations,
         )..where((t) => t.syncId.equals(entitySyncId))).write(
           CongregationsCompanion(
             serverVersion: Value(serverVersion),
-            lastSyncedAt: Value(syncedAt),
+            lastSyncedAt: syncedAt,
           ),
         );
-      case 'fieldServiceGroup':
+      case SyncEntityTypes.fieldServiceGroup:
         await (update(
           fieldServiceGroups,
         )..where((t) => t.syncId.equals(entitySyncId))).write(
           FieldServiceGroupsCompanion(
             serverVersion: Value(serverVersion),
-            lastSyncedAt: Value(syncedAt),
+            lastSyncedAt: syncedAt,
           ),
         );
-      case 'person':
+      case SyncEntityTypes.person:
         await (update(
           persons,
         )..where((t) => t.syncId.equals(entitySyncId))).write(
           PersonsCompanion(
             serverVersion: Value(serverVersion),
-            lastSyncedAt: Value(syncedAt),
+            lastSyncedAt: syncedAt,
           ),
         );
-      case 'phoneNumber':
+      case SyncEntityTypes.phoneNumber:
         await (update(
           phoneNumbers,
         )..where((t) => t.syncId.equals(entitySyncId))).write(
           PhoneNumbersCompanion(
             serverVersion: Value(serverVersion),
-            lastSyncedAt: Value(syncedAt),
+            lastSyncedAt: syncedAt,
           ),
         );
-      case 'emergencyContact':
+      case SyncEntityTypes.emergencyContact:
         await (update(
           emergencyContacts,
         )..where((t) => t.syncId.equals(entitySyncId))).write(
           EmergencyContactsCompanion(
             serverVersion: Value(serverVersion),
-            lastSyncedAt: Value(syncedAt),
+            lastSyncedAt: syncedAt,
           ),
         );
-      case 'serviceReport':
+      case SyncEntityTypes.serviceReport:
         await (update(
           serviceReports,
         )..where((t) => t.syncId.equals(entitySyncId))).write(
           ServiceReportsCompanion(
             serverVersion: Value(serverVersion),
-            lastSyncedAt: Value(syncedAt),
+            lastSyncedAt: syncedAt,
           ),
         );
-      case 'auxiliaryPioneerPeriod':
+      case SyncEntityTypes.auxiliaryPioneerPeriod:
         await (update(
           auxiliaryPioneerPeriods,
         )..where((t) => t.syncId.equals(entitySyncId))).write(
           AuxiliaryPioneerPeriodsCompanion(
             serverVersion: Value(serverVersion),
-            lastSyncedAt: Value(syncedAt),
+            lastSyncedAt: syncedAt,
           ),
         );
     }
   }
 
+  // ──────────────────────────────────────────────────
+  // Online sync: conflicts
+  // ──────────────────────────────────────────────────
+
+  Future<int> getOpenSyncConflictCount() async {
+    final count = syncConflicts.id.count();
+    final row =
+        await (selectOnly(syncConflicts)
+              ..addColumns([count])
+              ..where(syncConflicts.resolvedAt.isNull()))
+            .getSingle();
+    return row.read(count) ?? 0;
+  }
+
+  Stream<int> watchOpenSyncConflictCount() {
+    final count = syncConflicts.id.count();
+    return (selectOnly(syncConflicts)
+          ..addColumns([count])
+          ..where(syncConflicts.resolvedAt.isNull()))
+        .map((row) => row.read(count) ?? 0)
+        .watchSingle();
+  }
+
+  Stream<List<SyncConflict>> watchOpenSyncConflicts() =>
+      (select(syncConflicts)
+            ..where((c) => c.resolvedAt.isNull())
+            ..orderBy([(c) => OrderingTerm.desc(c.createdAt)]))
+          .watch();
+
+  /// Keeps the server version (already applied) and closes the conflict.
+  Future<void> dismissSyncConflict(int id) =>
+      (update(syncConflicts)..where((c) => c.id.equals(id))).write(
+        SyncConflictsCompanion(resolvedAt: Value(DateTime.now().toUtc())),
+      );
+
+  /// Puts this device's version back and queues it on top of the server
+  /// version, then closes the conflict.
+  Future<void> restoreLocalVersionFromConflict(int id) => transaction(() async {
+    final conflict = await (select(
+      syncConflicts,
+    )..where((c) => c.id.equals(id))).getSingle();
+    final local = jsonDecode(conflict.localPayloadJson) as Map<String, dynamic>;
+    final operationType = local['operationType'] as String? ?? 'upsert';
+    final payload =
+        (local['payload'] as Map?)?.cast<String, dynamic>() ??
+        <String, dynamic>{};
+    final index = await _SyncIndex.load(this);
+    final baseVersion =
+        index.find(conflict.entityType, conflict.entitySyncId)?.serverVersion ??
+        conflict.serverVersion;
+    final change = RemoteChange(
+      entityType: conflict.entityType,
+      syncId: conflict.entitySyncId,
+      version: baseVersion,
+      deleted: operationType == 'delete',
+      payload: payload,
+    );
+
+    if (change.deleted) {
+      await _applyDelete(change, index);
+    } else {
+      final outcome = await _applyUpsert(
+        change,
+        index,
+        DateTime.now().toUtc(),
+        force: true,
+      );
+      if (outcome == _ApplyOutcome.deferred) {
+        throw StateError(
+          'This record belongs to a publisher that no longer exists.',
+        );
+      }
+    }
+    await _queueOperationIfEnabled(
+      entityType: conflict.entityType,
+      entitySyncId: conflict.entitySyncId,
+      operationType: operationType,
+      payload: payload,
+      baseServerVersion: baseVersion,
+    );
+    await dismissSyncConflict(id);
+  });
+
+  // ──────────────────────────────────────────────────
+  // Online sync: incoming changes
+  // ──────────────────────────────────────────────────
+
+  /// Applies pulled changes in dependency order within one transaction and,
+  /// when given, stores [pullSeq] as the new feed position. Returns the
+  /// number of local rows that changed.
+  Future<int> applyRemoteChanges(List<RemoteChange> changes, {int? pullSeq}) =>
+      transaction(() async {
+        final applied = await _applyRemoteBatch(changes, retryDeferred: true);
+        if (pullSeq != null) {
+          await _updateSyncSettings(
+            SyncSettingsCompanion(pullSeq: Value(pullSeq)),
+          );
+        }
+        return applied;
+      });
+
+  /// Applies one change; convenient for tests.
   Future<void> applyRemoteChange({
     required String entityType,
     required String operationType,
     required String entitySyncId,
     required int serverVersion,
     required Map<String, dynamic> payload,
+  }) => applyRemoteChanges([
+    RemoteChange(
+      entityType: entityType,
+      syncId: entitySyncId,
+      version: serverVersion,
+      deleted: operationType == 'delete',
+      payload: payload,
+    ),
+  ]);
+
+  Future<int> _applyRemoteBatch(
+    List<RemoteChange> incoming, {
+    required bool retryDeferred,
+    bool respectPending = true,
   }) async {
-    final syncedAt = DateTime.now().toUtc();
-    if (operationType == 'delete') {
-      await _deleteLocalBySyncId(entityType, entitySyncId);
-      return;
+    final changes = <String, RemoteChange>{};
+    if (retryDeferred) {
+      for (final row in await select(deferredRemoteChanges).get()) {
+        changes[row.entitySyncId] = RemoteChange(
+          entityType: row.entityType,
+          syncId: row.entitySyncId,
+          version: row.serverVersion,
+          payload: jsonDecode(row.payloadJson) as Map<String, dynamic>,
+        );
+      }
+    }
+    for (final change in incoming) {
+      final existing = changes[change.syncId];
+      if (existing == null || change.version >= existing.version) {
+        changes[change.syncId] = change;
+      }
+    }
+    if (changes.isEmpty) return 0;
+    final processed = changes.keys.toList();
+
+    // Unpushed local edits win for now. The push that follows is
+    // version-checked, so a real clash becomes a recorded conflict.
+    if (respectPending) {
+      final pendingIds =
+          await (selectOnly(pendingSyncOperations)
+                ..addColumns([pendingSyncOperations.entitySyncId]))
+              .map((row) => row.read(pendingSyncOperations.entitySyncId)!)
+              .get();
+      for (final syncId in pendingIds) {
+        changes.remove(syncId);
+      }
     }
 
-    switch (entityType) {
-      case 'congregation':
-        final existingId = await _congregationIdBySyncId(entitySyncId);
-        final companion = CongregationsCompanion(
-          id: existingId == null ? const Value.absent() : Value(existingId),
-          syncId: Value(entitySyncId),
-          serverVersion: Value(serverVersion),
-          lastSyncedAt: Value(syncedAt),
-          deletedAt: Value(_date(payload['deletedAt'])),
-          name: Value(_string(payload['name']) ?? ''),
-          number: Value(_string(payload['number']) ?? ''),
-          city: Value(_string(payload['city']) ?? ''),
-          circuitNumber: Value(_string(payload['circuitNumber']) ?? ''),
-          circuitOverseerName: Value(
-            _string(payload['circuitOverseerName']) ?? '',
-          ),
-          circuitOverseerSpouseName: Value(
-            _string(payload['circuitOverseerSpouseName']) ?? '',
-          ),
-          circuitOverseerPhone: Value(
-            _string(payload['circuitOverseerPhone']) ?? '',
-          ),
-          circuitOverseerEmail: Value(
-            _string(payload['circuitOverseerEmail']) ?? '',
-          ),
-          circuitOverseerAddress: Value(
-            _string(payload['circuitOverseerAddress']) ?? '',
-          ),
-        );
-        if (existingId == null) {
-          await into(congregations).insert(companion);
-        } else {
-          await update(congregations).replace(companion);
+    final index = await _SyncIndex.load(this);
+    final syncedAt = DateTime.now().toUtc();
+    final deferred = <RemoteChange>[];
+    final appliedGroups = <RemoteChange>[];
+    var applied = 0;
+
+    final upserts = changes.values.where((c) => !c.deleted).toList();
+    for (final type in _upsertOrder) {
+      for (final change in upserts.where((c) => c.entityType == type)) {
+        switch (await _applyUpsert(change, index, syncedAt)) {
+          case _ApplyOutcome.applied:
+            applied++;
+            if (type == SyncEntityTypes.fieldServiceGroup) {
+              appliedGroups.add(change);
+            }
+          case _ApplyOutcome.unchanged:
+            break;
+          case _ApplyOutcome.deferred:
+            deferred.add(change);
         }
-      case 'fieldServiceGroup':
-        final existingId = await _fieldServiceGroupIdBySyncId(entitySyncId);
+      }
+    }
+    // A group can arrive before the publishers who lead it.
+    for (final group in appliedGroups) {
+      await _linkGroupLeaders(group, index);
+    }
+
+    final deletes = changes.values.where((c) => c.deleted).toList();
+    for (final type in _deleteOrder) {
+      for (final change in deletes.where((c) => c.entityType == type)) {
+        if (await _applyDelete(change, index)) applied++;
+      }
+    }
+
+    for (var start = 0; start < processed.length; start += 500) {
+      final chunk = processed.sublist(
+        start,
+        min(start + 500, processed.length),
+      );
+      await (delete(
+        deferredRemoteChanges,
+      )..where((d) => d.entitySyncId.isIn(chunk))).go();
+    }
+    for (final change in deferred) {
+      await into(deferredRemoteChanges).insert(
+        DeferredRemoteChangesCompanion.insert(
+          entityType: change.entityType,
+          entitySyncId: change.syncId,
+          serverVersion: change.version,
+          payloadJson: jsonEncode(change.payload),
+        ),
+      );
+    }
+    return applied;
+  }
+
+  Future<_ApplyOutcome> _applyUpsert(
+    RemoteChange change,
+    _SyncIndex index,
+    DateTime syncedAt, {
+    bool force = false,
+  }) async {
+    final local = index.find(change.entityType, change.syncId);
+    // Our own pushes come back in the feed; skip versions we already have.
+    if (!force && local != null && change.version <= local.serverVersion) {
+      return _ApplyOutcome.unchanged;
+    }
+    final p = change.payload;
+    final syncId = Value(change.syncId);
+    final version = Value(change.version);
+    final lastSyncedAt = Value<DateTime?>(syncedAt);
+    DateTime timestamp(String key) => _date(p[key]) ?? syncedAt;
+
+    switch (change.entityType) {
+      case SyncEntityTypes.congregation:
+        final companion = CongregationsCompanion(
+          syncId: syncId,
+          serverVersion: version,
+          lastSyncedAt: lastSyncedAt,
+          deletedAt: const Value(null),
+          name: Value(_string(p['name']) ?? ''),
+          number: Value(_string(p['number']) ?? ''),
+          city: Value(_string(p['city']) ?? ''),
+          circuitNumber: Value(_string(p['circuitNumber']) ?? ''),
+          circuitOverseerName: Value(_string(p['circuitOverseerName']) ?? ''),
+          circuitOverseerSpouseName: Value(
+            _string(p['circuitOverseerSpouseName']) ?? '',
+          ),
+          circuitOverseerPhone: Value(_string(p['circuitOverseerPhone']) ?? ''),
+          circuitOverseerEmail: Value(_string(p['circuitOverseerEmail']) ?? ''),
+          circuitOverseerAddress: Value(
+            _string(p['circuitOverseerAddress']) ?? '',
+          ),
+          createdAt: Value(timestamp('createdAt')),
+          updatedAt: Value(timestamp('updatedAt')),
+        );
+        final id = local == null
+            ? await into(congregations).insert(companion)
+            : await (update(congregations)..where((t) => t.id.equals(local.id)))
+                  .write(companion)
+                  .then((_) => local.id);
+        index.put(change.entityType, change.syncId, id, change.version);
+
+      case SyncEntityTypes.fieldServiceGroup:
         final companion = FieldServiceGroupsCompanion(
-          id: existingId == null ? const Value.absent() : Value(existingId),
-          syncId: Value(entitySyncId),
-          serverVersion: Value(serverVersion),
-          lastSyncedAt: Value(syncedAt),
-          deletedAt: Value(_date(payload['deletedAt'])),
-          name: Value(_string(payload['name']) ?? ''),
-          description: Value(_string(payload['description']) ?? ''),
+          syncId: syncId,
+          serverVersion: version,
+          lastSyncedAt: lastSyncedAt,
+          deletedAt: const Value(null),
+          name: Value(_string(p['name']) ?? ''),
+          description: Value(_string(p['description']) ?? ''),
           congregationId: Value(
-            await _congregationIdBySyncId(
-              _string(payload['congregationSyncId']),
+            index.idOf(
+              SyncEntityTypes.congregation,
+              _string(p['congregationSyncId']),
             ),
           ),
           groupOverseerId: Value(
-            await _personIdBySyncId(_string(payload['groupOverseerSyncId'])),
+            index.idOf(
+              SyncEntityTypes.person,
+              _string(p['groupOverseerSyncId']),
+            ),
           ),
           assistantId: Value(
-            await _personIdBySyncId(_string(payload['assistantSyncId'])),
+            index.idOf(SyncEntityTypes.person, _string(p['assistantSyncId'])),
           ),
+          createdAt: Value(timestamp('createdAt')),
+          updatedAt: Value(timestamp('updatedAt')),
         );
-        if (existingId == null) {
-          await into(fieldServiceGroups).insert(companion);
-        } else {
-          await update(fieldServiceGroups).replace(companion);
-        }
-      case 'person':
-        final existingId = await _personIdBySyncId(entitySyncId);
+        final id = local == null
+            ? await into(fieldServiceGroups).insert(companion)
+            : await (update(fieldServiceGroups)
+                    ..where((t) => t.id.equals(local.id)))
+                  .write(companion)
+                  .then((_) => local.id);
+        index.put(change.entityType, change.syncId, id, change.version);
+
+      case SyncEntityTypes.person:
         final companion = PersonsCompanion(
-          id: existingId == null ? const Value.absent() : Value(existingId),
-          syncId: Value(entitySyncId),
-          serverVersion: Value(serverVersion),
-          lastSyncedAt: Value(syncedAt),
-          deletedAt: Value(_date(payload['deletedAt'])),
-          firstName: Value(_string(payload['firstName']) ?? ''),
-          lastName: Value(_string(payload['lastName']) ?? ''),
-          otherNames: Value(_string(payload['otherNames']) ?? ''),
-          birthDate: Value(_date(payload['birthDate'])),
-          baptismDate: Value(_date(payload['baptismDate'])),
-          gender: Value(
-            _enumAt(Gender.values, payload['gender'], Gender.unknown),
-          ),
+          syncId: syncId,
+          serverVersion: version,
+          lastSyncedAt: lastSyncedAt,
+          deletedAt: const Value(null),
+          firstName: Value(_string(p['firstName']) ?? ''),
+          lastName: Value(_string(p['lastName']) ?? ''),
+          otherNames: Value(_string(p['otherNames']) ?? ''),
+          birthDate: Value(_date(p['birthDate'])),
+          baptismDate: Value(_date(p['baptismDate'])),
+          gender: Value(_enumAt(Gender.values, p['gender'], Gender.unknown)),
           hopeClass: Value(
-            _enumAt(HopeClass.values, payload['hopeClass'], HopeClass.unknown),
+            _enumAt(HopeClass.values, p['hopeClass'], HopeClass.unknown),
           ),
           congregationRole: Value(
             _enumAt(
               CongregationRole.values,
-              payload['congregationRole'],
+              p['congregationRole'],
               CongregationRole.none,
             ),
           ),
           pioneerType: Value(
-            _enumAt(
-              PioneerType.values,
-              payload['pioneerType'],
-              PioneerType.none,
-            ),
+            _enumAt(PioneerType.values, p['pioneerType'], PioneerType.none),
           ),
-          address: Value(_string(payload['address']) ?? ''),
-          email: Value(_string(payload['email']) ?? ''),
-          isActive: Value(_bool(payload['isActive']) ?? true),
-          inactiveDate: Value(_date(payload['inactiveDate'])),
+          address: Value(_string(p['address']) ?? ''),
+          email: Value(_string(p['email']) ?? ''),
+          isActive: Value(_bool(p['isActive']) ?? true),
+          inactiveDate: Value(_date(p['inactiveDate'])),
           recordStatus: Value(
             _enumAt(
               PersonRecordStatus.values,
-              payload['recordStatus'],
+              p['recordStatus'],
               PersonRecordStatus.current,
             ),
           ),
           archiveReason: Value(
-            payload['archiveReason'] == null
+            p['archiveReason'] == null
                 ? null
                 : _enumAt(
                     PersonArchiveReason.values,
-                    payload['archiveReason'],
+                    p['archiveReason'],
                     PersonArchiveReason.other,
                   ),
           ),
-          archivedAt: Value(_date(payload['archivedAt'])),
-          trashedAt: Value(_date(payload['trashedAt'])),
+          archivedAt: Value(_date(p['archivedAt'])),
+          trashedAt: Value(_date(p['trashedAt'])),
           congregationId: Value(
-            await _congregationIdBySyncId(
-              _string(payload['congregationSyncId']),
+            index.idOf(
+              SyncEntityTypes.congregation,
+              _string(p['congregationSyncId']),
             ),
           ),
           fieldServiceGroupId: Value(
-            await _fieldServiceGroupIdBySyncId(
-              _string(payload['fieldServiceGroupSyncId']),
+            index.idOf(
+              SyncEntityTypes.fieldServiceGroup,
+              _string(p['fieldServiceGroupSyncId']),
             ),
           ),
+          createdAt: Value(timestamp('createdAt')),
+          updatedAt: Value(timestamp('updatedAt')),
         );
-        if (existingId == null) {
-          await into(persons).insert(companion);
-        } else {
-          await update(persons).replace(companion);
-        }
-      case 'phoneNumber':
-        final personId = await _personIdBySyncId(
-          _string(payload['personSyncId']),
+        final id = local == null
+            ? await into(persons).insert(companion)
+            : await (update(persons)..where((t) => t.id.equals(local.id)))
+                  .write(companion)
+                  .then((_) => local.id);
+        index.put(change.entityType, change.syncId, id, change.version);
+
+      case SyncEntityTypes.phoneNumber:
+        final personId = index.idOf(
+          SyncEntityTypes.person,
+          _string(p['personSyncId']),
         );
-        if (personId == null) return;
-        final existingId = await _phoneNumberIdBySyncId(entitySyncId);
+        if (personId == null) return _ApplyOutcome.deferred;
         final companion = PhoneNumbersCompanion(
-          id: existingId == null ? const Value.absent() : Value(existingId),
-          syncId: Value(entitySyncId),
-          serverVersion: Value(serverVersion),
-          lastSyncedAt: Value(syncedAt),
-          deletedAt: Value(_date(payload['deletedAt'])),
-          number: Value(_string(payload['number']) ?? ''),
+          syncId: syncId,
+          serverVersion: version,
+          lastSyncedAt: lastSyncedAt,
+          deletedAt: const Value(null),
+          number: Value(_string(p['number']) ?? ''),
           phoneType: Value(
-            _enumAt(PhoneType.values, payload['phoneType'], PhoneType.mobile),
+            _enumAt(PhoneType.values, p['phoneType'], PhoneType.mobile),
           ),
-          isPrimary: Value(_bool(payload['isPrimary']) ?? false),
+          isPrimary: Value(_bool(p['isPrimary']) ?? false),
           personId: Value(personId),
         );
-        if (existingId == null) {
-          await into(phoneNumbers).insert(companion);
-        } else {
-          await update(phoneNumbers).replace(companion);
-        }
-      case 'emergencyContact':
-        final personId = await _personIdBySyncId(
-          _string(payload['personSyncId']),
+        final id = local == null
+            ? await into(phoneNumbers).insert(companion)
+            : await (update(phoneNumbers)..where((t) => t.id.equals(local.id)))
+                  .write(companion)
+                  .then((_) => local.id);
+        index.put(change.entityType, change.syncId, id, change.version);
+
+      case SyncEntityTypes.emergencyContact:
+        final personId = index.idOf(
+          SyncEntityTypes.person,
+          _string(p['personSyncId']),
         );
-        if (personId == null) return;
-        final existingId = await _emergencyContactIdBySyncId(entitySyncId);
+        if (personId == null) return _ApplyOutcome.deferred;
         final companion = EmergencyContactsCompanion(
-          id: existingId == null ? const Value.absent() : Value(existingId),
-          syncId: Value(entitySyncId),
-          serverVersion: Value(serverVersion),
-          lastSyncedAt: Value(syncedAt),
-          deletedAt: Value(_date(payload['deletedAt'])),
-          name: Value(_string(payload['name']) ?? ''),
-          phoneNumber: Value(_string(payload['phoneNumber']) ?? ''),
+          syncId: syncId,
+          serverVersion: version,
+          lastSyncedAt: lastSyncedAt,
+          deletedAt: const Value(null),
+          name: Value(_string(p['name']) ?? ''),
+          phoneNumber: Value(_string(p['phoneNumber']) ?? ''),
           relationship: Value(
-            _enumAt(
-              Relationship.values,
-              payload['relationship'],
-              Relationship.other,
-            ),
+            _enumAt(Relationship.values, p['relationship'], Relationship.other),
           ),
-          isPrimary: Value(_bool(payload['isPrimary']) ?? false),
+          isPrimary: Value(_bool(p['isPrimary']) ?? false),
           personId: Value(personId),
         );
-        if (existingId == null) {
-          await into(emergencyContacts).insert(companion);
-        } else {
-          await update(emergencyContacts).replace(companion);
-        }
-      case 'serviceReport':
-        final personId = await _personIdBySyncId(
-          _string(payload['personSyncId']),
+        final id = local == null
+            ? await into(emergencyContacts).insert(companion)
+            : await (update(emergencyContacts)
+                    ..where((t) => t.id.equals(local.id)))
+                  .write(companion)
+                  .then((_) => local.id);
+        index.put(change.entityType, change.syncId, id, change.version);
+
+      case SyncEntityTypes.serviceReport:
+        final personId = index.idOf(
+          SyncEntityTypes.person,
+          _string(p['personSyncId']),
         );
-        if (personId == null) return;
-        final existingId = await _serviceReportIdBySyncId(entitySyncId);
+        if (personId == null) return _ApplyOutcome.deferred;
+        final now = DateTime.now();
         final companion = ServiceReportsCompanion(
-          id: existingId == null ? const Value.absent() : Value(existingId),
-          syncId: Value(entitySyncId),
-          serverVersion: Value(serverVersion),
-          lastSyncedAt: Value(syncedAt),
-          deletedAt: Value(_date(payload['deletedAt'])),
-          year: Value(_int(payload['year']) ?? DateTime.now().year),
-          month: Value(_int(payload['month']) ?? DateTime.now().month),
-          isAuxiliaryPioneer: Value(
-            _bool(payload['isAuxiliaryPioneer']) ?? false,
-          ),
-          isActive: Value(_bool(payload['isActive']) ?? true),
-          sharedInMinistry: Value(_bool(payload['sharedInMinistry']) ?? false),
-          bibleStudies: Value(_int(payload['bibleStudies']) ?? 0),
-          hours: Value(_double(payload['hours']) ?? 0),
-          note: Value(_string(payload['note']) ?? ''),
+          syncId: syncId,
+          serverVersion: version,
+          lastSyncedAt: lastSyncedAt,
+          deletedAt: const Value(null),
+          year: Value(_int(p['year']) ?? now.year),
+          month: Value(_int(p['month']) ?? now.month),
+          isAuxiliaryPioneer: Value(_bool(p['isAuxiliaryPioneer']) ?? false),
+          isActive: Value(_bool(p['isActive']) ?? true),
+          sharedInMinistry: Value(_bool(p['sharedInMinistry']) ?? false),
+          bibleStudies: Value(_int(p['bibleStudies']) ?? 0),
+          hours: Value(_double(p['hours']) ?? 0),
+          note: Value(_string(p['note']) ?? ''),
           personId: Value(personId),
         );
-        if (existingId == null) {
-          await into(serviceReports).insert(companion);
-        } else {
-          await update(serviceReports).replace(companion);
-        }
-      case 'auxiliaryPioneerPeriod':
-        final personId = await _personIdBySyncId(
-          _string(payload['personSyncId']),
+        final id = local == null
+            ? await into(serviceReports).insert(companion)
+            : await (update(serviceReports)
+                    ..where((t) => t.id.equals(local.id)))
+                  .write(companion)
+                  .then((_) => local.id);
+        index.put(change.entityType, change.syncId, id, change.version);
+
+      case SyncEntityTypes.auxiliaryPioneerPeriod:
+        final personId = index.idOf(
+          SyncEntityTypes.person,
+          _string(p['personSyncId']),
         );
-        if (personId == null) return;
-        final existingId = await _auxiliaryPioneerPeriodIdBySyncId(
-          entitySyncId,
-        );
+        if (personId == null) return _ApplyOutcome.deferred;
+        final now = DateTime.now();
         final companion = AuxiliaryPioneerPeriodsCompanion(
-          id: existingId == null ? const Value.absent() : Value(existingId),
-          syncId: Value(entitySyncId),
-          serverVersion: Value(serverVersion),
-          lastSyncedAt: Value(syncedAt),
-          deletedAt: Value(_date(payload['deletedAt'])),
-          startMonth: Value(_int(payload['startMonth']) ?? 1),
-          startYear: Value(_int(payload['startYear']) ?? DateTime.now().year),
-          endMonth: Value(_int(payload['endMonth'])),
-          endYear: Value(_int(payload['endYear'])),
+          syncId: syncId,
+          serverVersion: version,
+          lastSyncedAt: lastSyncedAt,
+          deletedAt: const Value(null),
+          startMonth: Value(_int(p['startMonth']) ?? 1),
+          startYear: Value(_int(p['startYear']) ?? now.year),
+          endMonth: Value(_int(p['endMonth'])),
+          endYear: Value(_int(p['endYear'])),
           personId: Value(personId),
         );
-        if (existingId == null) {
-          await into(auxiliaryPioneerPeriods).insert(companion);
-        } else {
-          await update(auxiliaryPioneerPeriods).replace(companion);
-        }
+        final id = local == null
+            ? await into(auxiliaryPioneerPeriods).insert(companion)
+            : await (update(auxiliaryPioneerPeriods)
+                    ..where((t) => t.id.equals(local.id)))
+                  .write(companion)
+                  .then((_) => local.id);
+        index.put(change.entityType, change.syncId, id, change.version);
+
+      default:
+        // Unknown types are filtered out before they get here.
+        return _ApplyOutcome.unchanged;
     }
+    return _ApplyOutcome.applied;
   }
 
-  Future<void> _deleteLocalBySyncId(String entityType, String syncId) async {
-    switch (entityType) {
-      case 'congregation':
-        await (delete(
-          congregations,
-        )..where((t) => t.syncId.equals(syncId))).go();
-      case 'fieldServiceGroup':
-        await (delete(
-          fieldServiceGroups,
-        )..where((t) => t.syncId.equals(syncId))).go();
-      case 'person':
-        await (delete(persons)..where((t) => t.syncId.equals(syncId))).go();
-      case 'phoneNumber':
-        await (delete(
-          phoneNumbers,
-        )..where((t) => t.syncId.equals(syncId))).go();
-      case 'emergencyContact':
+  Future<void> _linkGroupLeaders(RemoteChange group, _SyncIndex index) async {
+    final local = index.find(SyncEntityTypes.fieldServiceGroup, group.syncId);
+    if (local == null) return;
+    await (update(
+      fieldServiceGroups,
+    )..where((g) => g.id.equals(local.id))).write(
+      FieldServiceGroupsCompanion(
+        groupOverseerId: Value(
+          index.idOf(
+            SyncEntityTypes.person,
+            _string(group.payload['groupOverseerSyncId']),
+          ),
+        ),
+        assistantId: Value(
+          index.idOf(
+            SyncEntityTypes.person,
+            _string(group.payload['assistantSyncId']),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Deletes the local row for a remote tombstone. Deleting a publisher also
+  /// removes what they own and their group leadership, as it did on the
+  /// device that deleted them.
+  Future<bool> _applyDelete(RemoteChange change, _SyncIndex index) async {
+    final local = index.find(change.entityType, change.syncId);
+    if (local == null) return false;
+    final id = local.id;
+    switch (change.entityType) {
+      case SyncEntityTypes.congregation:
+        await (delete(congregations)..where((t) => t.id.equals(id))).go();
+      case SyncEntityTypes.fieldServiceGroup:
+        await (delete(fieldServiceGroups)..where((t) => t.id.equals(id))).go();
+      case SyncEntityTypes.person:
+        await (delete(phoneNumbers)..where((t) => t.personId.equals(id))).go();
         await (delete(
           emergencyContacts,
-        )..where((t) => t.syncId.equals(syncId))).go();
-      case 'serviceReport':
+        )..where((t) => t.personId.equals(id))).go();
         await (delete(
           serviceReports,
-        )..where((t) => t.syncId.equals(syncId))).go();
-      case 'auxiliaryPioneerPeriod':
+        )..where((t) => t.personId.equals(id))).go();
         await (delete(
           auxiliaryPioneerPeriods,
-        )..where((t) => t.syncId.equals(syncId))).go();
+        )..where((t) => t.personId.equals(id))).go();
+        await (update(
+          fieldServiceGroups,
+        )..where((g) => g.groupOverseerId.equals(id))).write(
+          const FieldServiceGroupsCompanion(groupOverseerId: Value(null)),
+        );
+        await (update(fieldServiceGroups)
+              ..where((g) => g.assistantId.equals(id)))
+            .write(const FieldServiceGroupsCompanion(assistantId: Value(null)));
+        await (delete(persons)..where((t) => t.id.equals(id))).go();
+      case SyncEntityTypes.phoneNumber:
+        await (delete(phoneNumbers)..where((t) => t.id.equals(id))).go();
+      case SyncEntityTypes.emergencyContact:
+        await (delete(emergencyContacts)..where((t) => t.id.equals(id))).go();
+      case SyncEntityTypes.serviceReport:
+        await (delete(serviceReports)..where((t) => t.id.equals(id))).go();
+      case SyncEntityTypes.auxiliaryPioneerPeriod:
+        await (delete(
+          auxiliaryPioneerPeriods,
+        )..where((t) => t.id.equals(id))).go();
+      default:
+        return false;
     }
+    index.remove(change.entityType, change.syncId);
+    return true;
   }
-
-  Future<int?> _congregationIdBySyncId(String? syncId) async {
-    if (syncId == null || syncId.isEmpty) return null;
-    return (await (select(
-      congregations,
-    )..where((t) => t.syncId.equals(syncId))).getSingleOrNull())?.id;
-  }
-
-  Future<int?> _fieldServiceGroupIdBySyncId(String? syncId) async {
-    if (syncId == null || syncId.isEmpty) return null;
-    return (await (select(
-      fieldServiceGroups,
-    )..where((t) => t.syncId.equals(syncId))).getSingleOrNull())?.id;
-  }
-
-  Future<int?> _personIdBySyncId(String? syncId) async {
-    if (syncId == null || syncId.isEmpty) return null;
-    return (await (select(
-      persons,
-    )..where((t) => t.syncId.equals(syncId))).getSingleOrNull())?.id;
-  }
-
-  Future<int?> _phoneNumberIdBySyncId(String syncId) async => (await (select(
-    phoneNumbers,
-  )..where((t) => t.syncId.equals(syncId))).getSingleOrNull())?.id;
-
-  Future<int?> _emergencyContactIdBySyncId(String syncId) async =>
-      (await (select(
-        emergencyContacts,
-      )..where((t) => t.syncId.equals(syncId))).getSingleOrNull())?.id;
-
-  Future<int?> _serviceReportIdBySyncId(String syncId) async => (await (select(
-    serviceReports,
-  )..where((t) => t.syncId.equals(syncId))).getSingleOrNull())?.id;
-
-  Future<int?> _auxiliaryPioneerPeriodIdBySyncId(String syncId) async =>
-      (await (select(
-        auxiliaryPioneerPeriods,
-      )..where((t) => t.syncId.equals(syncId))).getSingleOrNull())?.id;
 
   static String? _string(Object? value) => value?.toString();
 
@@ -947,29 +1447,9 @@ class AppDatabase extends _$AppDatabase {
     return values[intIndex];
   }
 
-  Future<SyncSetting> _ensureSyncSettings() async {
-    final existing = await select(syncSettings).getSingleOrNull();
-    if (existing != null && (existing.deviceId?.isNotEmpty ?? false)) {
-      return existing;
-    }
-
-    final deviceId = existing?.deviceId?.isNotEmpty == true
-        ? existing!.deviceId!
-        : _uuid.v4();
-    await into(syncSettings).insertOnConflictUpdate(
-      SyncSettingsCompanion(
-        id: const Value(1),
-        isEnabled: Value(existing?.isEnabled ?? false),
-        serverUrl: Value(existing?.serverUrl),
-        bearerToken: Value(existing?.bearerToken),
-        deviceId: Value(deviceId),
-        pullCursor: Value(existing?.pullCursor),
-        lastSyncAt: Value(existing?.lastSyncAt),
-        lastError: Value(existing?.lastError),
-      ),
-    );
-    return select(syncSettings).getSingle();
-  }
+  // ──────────────────────────────────────────────────
+  // Online sync: local record identities and payloads
+  // ──────────────────────────────────────────────────
 
   Future<void> _ensureAllLocalSyncIds() async {
     for (final row in await select(congregations).get()) {
@@ -1021,6 +1501,12 @@ class AppDatabase extends _$AppDatabase {
     }
   }
 
+  /// Queues [payload] for upload while this database is enrolled in a vault.
+  ///
+  /// Each record has at most one pending operation. A newer edit replaces the
+  /// queued payload (payloads always carry the full record) but keeps the
+  /// original queue position and base version, so repeated edits between
+  /// syncs cannot conflict with each other.
   Future<void> _queueOperationIfEnabled({
     required String entityType,
     required String entitySyncId,
@@ -1031,16 +1517,77 @@ class AppDatabase extends _$AppDatabase {
     final settings = await _ensureSyncSettings();
     if (!settings.isEnabled) return;
 
+    final payloadJson = jsonEncode(payload);
+    final existing =
+        await (select(pendingSyncOperations)
+              ..where((o) => o.entitySyncId.equals(entitySyncId))
+              ..orderBy([(o) => OrderingTerm.asc(o.id)])
+              ..limit(1))
+            .getSingleOrNull();
+    if (existing != null) {
+      await (update(
+        pendingSyncOperations,
+      )..where((o) => o.id.equals(existing.id))).write(
+        PendingSyncOperationsCompanion(
+          operationId: Value(_uuid.v4()),
+          entityType: Value(entityType),
+          operationType: Value(operationType),
+          payloadJson: Value(payloadJson),
+          attemptCount: const Value(0),
+          lastAttemptAt: const Value(null),
+          lastError: const Value(null),
+        ),
+      );
+      return;
+    }
+
     await into(pendingSyncOperations).insert(
       PendingSyncOperationsCompanion.insert(
         operationId: _uuid.v4(),
         entityType: entityType,
         entitySyncId: entitySyncId,
         operationType: operationType,
-        payloadJson: jsonEncode(payload),
+        payloadJson: payloadJson,
         baseServerVersion: Value(baseServerVersion),
       ),
     );
+  }
+
+  /// Collects every record the vault already has, children first, so a bulk
+  /// replacement can delete them there.
+  Future<List<RemoteChange>> _recordsOnServer() async {
+    final index = await _SyncIndex.load(this);
+    return [
+      for (final type in _deleteOrder)
+        for (final entry in index.entries(type))
+          if (entry.value.serverVersion > 0)
+            RemoteChange(
+              entityType: type,
+              syncId: entry.key,
+              version: entry.value.serverVersion,
+              deleted: true,
+            ),
+    ];
+  }
+
+  /// After local data was replaced wholesale (JSON import), makes the vault
+  /// match: delete what it had, then upload the new records.
+  Future<void> _replaceVaultContents(List<RemoteChange> previous) async {
+    await delete(pendingSyncOperations).go();
+    await delete(deferredRemoteChanges).go();
+    for (final record in previous) {
+      await into(pendingSyncOperations).insert(
+        PendingSyncOperationsCompanion.insert(
+          operationId: _uuid.v4(),
+          entityType: record.entityType,
+          entitySyncId: record.syncId,
+          operationType: 'delete',
+          payloadJson: jsonEncode({'syncId': record.syncId}),
+          baseServerVersion: Value(record.version),
+        ),
+      );
+    }
+    await queueLocalSnapshotForSync();
   }
 
   Future<String> _ensureCongregationSyncId(int id) async {
@@ -1120,9 +1667,11 @@ class AppDatabase extends _$AppDatabase {
     return syncId;
   }
 
+  // Payloads hold the complete record. The server stores them encrypted and
+  // never interprets them, so every field survives a round trip.
+
   Map<String, dynamic> _congregationPayload(Congregation row) => {
     'syncId': row.syncId,
-    'serverVersion': row.serverVersion,
     'name': row.name,
     'number': row.number,
     'city': row.city,
@@ -1141,7 +1690,6 @@ class AppDatabase extends _$AppDatabase {
     FieldServiceGroup row,
   ) async => {
     'syncId': row.syncId,
-    'serverVersion': row.serverVersion,
     'name': row.name,
     'description': row.description,
     'congregationSyncId': row.congregationId == null
@@ -1160,7 +1708,6 @@ class AppDatabase extends _$AppDatabase {
 
   Future<Map<String, dynamic>> _personPayload(Person row) async => {
     'syncId': row.syncId,
-    'serverVersion': row.serverVersion,
     'firstName': row.firstName,
     'lastName': row.lastName,
     'otherNames': row.otherNames,
@@ -1191,7 +1738,6 @@ class AppDatabase extends _$AppDatabase {
 
   Future<Map<String, dynamic>> _phoneNumberPayload(PhoneNumber row) async => {
     'syncId': row.syncId,
-    'serverVersion': row.serverVersion,
     'number': row.number,
     'phoneType': row.phoneType.index,
     'isPrimary': row.isPrimary,
@@ -1203,7 +1749,6 @@ class AppDatabase extends _$AppDatabase {
     EmergencyContact row,
   ) async => {
     'syncId': row.syncId,
-    'serverVersion': row.serverVersion,
     'name': row.name,
     'phoneNumber': row.phoneNumber,
     'relationship': row.relationship.index,
@@ -1215,7 +1760,6 @@ class AppDatabase extends _$AppDatabase {
   Future<Map<String, dynamic>> _serviceReportPayload(ServiceReport row) async =>
       {
         'syncId': row.syncId,
-        'serverVersion': row.serverVersion,
         'year': row.year,
         'month': row.month,
         'isAuxiliaryPioneer': row.isAuxiliaryPioneer,
@@ -1232,7 +1776,6 @@ class AppDatabase extends _$AppDatabase {
     AuxiliaryPioneerPeriod row,
   ) async => {
     'syncId': row.syncId,
-    'serverVersion': row.serverVersion,
     'startMonth': row.startMonth,
     'startYear': row.startYear,
     'endMonth': row.endMonth,
@@ -1248,8 +1791,15 @@ class AppDatabase extends _$AppDatabase {
   Future<List<Congregation>> getAllCongregations() =>
       select(congregations).get();
 
+  Stream<List<Congregation>> watchAllCongregations() =>
+      select(congregations).watch();
+
   Future<Congregation> getCongregation(int id) =>
       (select(congregations)..where((c) => c.id.equals(id))).getSingle();
+
+  Stream<Congregation?> watchCongregation(int id) => (select(
+    congregations,
+  )..where((c) => c.id.equals(id))).watchSingleOrNull();
 
   Future<int> insertCongregation(CongregationsCompanion entry) async {
     final id = await into(congregations).insert(entry);
@@ -2369,11 +2919,37 @@ class AppDatabase extends _$AppDatabase {
     final isOldFormat =
         data.containsKey('Congregations') || data.containsKey('FormatVersion');
 
-    if (isOldFormat) {
-      await _importOldFormat(data);
-    } else {
-      await _importNativeFormat(data);
-    }
+    await transaction(() async {
+      // An import replaces every record, so an enrolled vault must follow:
+      // what it had is deleted there and the imported records are uploaded.
+      final syncEnabled = (await _ensureSyncSettings()).isEnabled;
+      final onServer = syncEnabled
+          ? await _recordsOnServer()
+          : const <RemoteChange>[];
+
+      if (isOldFormat) {
+        await _importOldFormat(data);
+      } else {
+        await _importNativeFormat(data);
+      }
+
+      if (syncEnabled) await _replaceVaultContents(onServer);
+    });
+  }
+
+  /// Copies the database next to itself (e.g. before joining a vault replaces
+  /// local data) and returns the copy's path.
+  Future<String> createBackupCopy(String label) async {
+    final currentPath = await databasePath();
+    final stamp = DateTime.now()
+        .toIso8601String()
+        .replaceAll(RegExp(r'[:.]'), '-')
+        .substring(0, 19);
+    final target =
+        '${_parentDirectoryPath(currentPath)}${Platform.pathSeparator}'
+        'congregation_manager.$label-$stamp.sqlite';
+    await copyDatabaseToPath(target, overwrite: false);
+    return target;
   }
 
   // Month name to number mapping for old .NET format
@@ -2797,4 +3373,66 @@ class AppDatabase extends _$AppDatabase {
       }
     });
   }
+}
+
+enum _ApplyOutcome { applied, unchanged, deferred }
+
+class _LocalRef {
+  const _LocalRef(this.id, this.serverVersion);
+
+  final int id;
+  final int serverVersion;
+}
+
+/// Sync id → local row id and server version for every synced table. Loaded
+/// once per batch so thousands of pulled changes need no per-row lookups,
+/// and updated as rows are inserted so children find parents from the same
+/// batch.
+class _SyncIndex {
+  _SyncIndex._(this._byType);
+
+  static const _tables = {
+    SyncEntityTypes.congregation: 'congregations',
+    SyncEntityTypes.fieldServiceGroup: 'field_service_groups',
+    SyncEntityTypes.person: 'persons',
+    SyncEntityTypes.phoneNumber: 'phone_numbers',
+    SyncEntityTypes.emergencyContact: 'emergency_contacts',
+    SyncEntityTypes.serviceReport: 'service_reports',
+    SyncEntityTypes.auxiliaryPioneerPeriod: 'auxiliary_pioneer_periods',
+  };
+
+  final Map<String, Map<String, _LocalRef>> _byType;
+
+  static Future<_SyncIndex> load(AppDatabase database) async {
+    final byType = <String, Map<String, _LocalRef>>{};
+    for (final MapEntry(key: type, value: table) in _tables.entries) {
+      final rows = await database
+          .customSelect(
+            'SELECT id, sync_id, server_version FROM $table '
+            'WHERE sync_id IS NOT NULL',
+          )
+          .get();
+      byType[type] = {
+        for (final row in rows)
+          row.read<String>('sync_id'): _LocalRef(
+            row.read<int>('id'),
+            row.read<int>('server_version'),
+          ),
+      };
+    }
+    return _SyncIndex._(byType);
+  }
+
+  _LocalRef? find(String type, String? syncId) =>
+      syncId == null || syncId.isEmpty ? null : _byType[type]?[syncId];
+
+  int? idOf(String type, String? syncId) => find(type, syncId)?.id;
+
+  Iterable<MapEntry<String, _LocalRef>> entries(String type) =>
+      _byType[type]?.entries ?? const [];
+
+  void put(String type, String syncId, int id, int serverVersion) =>
+      _byType[type]![syncId] = _LocalRef(id, serverVersion);
+
+  void remove(String type, String syncId) => _byType[type]?.remove(syncId);
 }

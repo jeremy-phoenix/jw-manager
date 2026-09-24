@@ -5762,12 +5762,12 @@ class $SyncSettingsTable extends SyncSettings
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
-  static const VerificationMeta _bearerTokenMeta = const VerificationMeta(
-    'bearerToken',
+  static const VerificationMeta _vaultIdMeta = const VerificationMeta(
+    'vaultId',
   );
   @override
-  late final GeneratedColumn<String> bearerToken = GeneratedColumn<String>(
-    'bearer_token',
+  late final GeneratedColumn<String> vaultId = GeneratedColumn<String>(
+    'vault_id',
     aliasedName,
     true,
     type: DriftSqlType.string,
@@ -5784,16 +5784,54 @@ class $SyncSettingsTable extends SyncSettings
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
-  static const VerificationMeta _pullCursorMeta = const VerificationMeta(
-    'pullCursor',
+  static const VerificationMeta _deviceLabelMeta = const VerificationMeta(
+    'deviceLabel',
   );
   @override
-  late final GeneratedColumn<String> pullCursor = GeneratedColumn<String>(
-    'pull_cursor',
+  late final GeneratedColumn<String> deviceLabel = GeneratedColumn<String>(
+    'device_label',
     aliasedName,
     true,
     type: DriftSqlType.string,
     requiredDuringInsert: false,
+  );
+  static const VerificationMeta _currentKeyIdMeta = const VerificationMeta(
+    'currentKeyId',
+  );
+  @override
+  late final GeneratedColumn<int> currentKeyId = GeneratedColumn<int>(
+    'current_key_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _needsKeyMeta = const VerificationMeta(
+    'needsKey',
+  );
+  @override
+  late final GeneratedColumn<bool> needsKey = GeneratedColumn<bool>(
+    'needs_key',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("needs_key" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _pullSeqMeta = const VerificationMeta(
+    'pullSeq',
+  );
+  @override
+  late final GeneratedColumn<int> pullSeq = GeneratedColumn<int>(
+    'pull_seq',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
   );
   static const VerificationMeta _lastSyncAtMeta = const VerificationMeta(
     'lastSyncAt',
@@ -5822,9 +5860,12 @@ class $SyncSettingsTable extends SyncSettings
     id,
     isEnabled,
     serverUrl,
-    bearerToken,
+    vaultId,
     deviceId,
-    pullCursor,
+    deviceLabel,
+    currentKeyId,
+    needsKey,
+    pullSeq,
     lastSyncAt,
     lastError,
   ];
@@ -5855,13 +5896,10 @@ class $SyncSettingsTable extends SyncSettings
         serverUrl.isAcceptableOrUnknown(data['server_url']!, _serverUrlMeta),
       );
     }
-    if (data.containsKey('bearer_token')) {
+    if (data.containsKey('vault_id')) {
       context.handle(
-        _bearerTokenMeta,
-        bearerToken.isAcceptableOrUnknown(
-          data['bearer_token']!,
-          _bearerTokenMeta,
-        ),
+        _vaultIdMeta,
+        vaultId.isAcceptableOrUnknown(data['vault_id']!, _vaultIdMeta),
       );
     }
     if (data.containsKey('device_id')) {
@@ -5870,10 +5908,34 @@ class $SyncSettingsTable extends SyncSettings
         deviceId.isAcceptableOrUnknown(data['device_id']!, _deviceIdMeta),
       );
     }
-    if (data.containsKey('pull_cursor')) {
+    if (data.containsKey('device_label')) {
       context.handle(
-        _pullCursorMeta,
-        pullCursor.isAcceptableOrUnknown(data['pull_cursor']!, _pullCursorMeta),
+        _deviceLabelMeta,
+        deviceLabel.isAcceptableOrUnknown(
+          data['device_label']!,
+          _deviceLabelMeta,
+        ),
+      );
+    }
+    if (data.containsKey('current_key_id')) {
+      context.handle(
+        _currentKeyIdMeta,
+        currentKeyId.isAcceptableOrUnknown(
+          data['current_key_id']!,
+          _currentKeyIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('needs_key')) {
+      context.handle(
+        _needsKeyMeta,
+        needsKey.isAcceptableOrUnknown(data['needs_key']!, _needsKeyMeta),
+      );
+    }
+    if (data.containsKey('pull_seq')) {
+      context.handle(
+        _pullSeqMeta,
+        pullSeq.isAcceptableOrUnknown(data['pull_seq']!, _pullSeqMeta),
       );
     }
     if (data.containsKey('last_sync_at')) {
@@ -5912,18 +5974,30 @@ class $SyncSettingsTable extends SyncSettings
         DriftSqlType.string,
         data['${effectivePrefix}server_url'],
       ),
-      bearerToken: attachedDatabase.typeMapping.read(
+      vaultId: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
-        data['${effectivePrefix}bearer_token'],
+        data['${effectivePrefix}vault_id'],
       ),
       deviceId: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}device_id'],
       ),
-      pullCursor: attachedDatabase.typeMapping.read(
+      deviceLabel: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
-        data['${effectivePrefix}pull_cursor'],
+        data['${effectivePrefix}device_label'],
       ),
+      currentKeyId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}current_key_id'],
+      ),
+      needsKey: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}needs_key'],
+      )!,
+      pullSeq: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}pull_seq'],
+      )!,
       lastSyncAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}last_sync_at'],
@@ -5943,20 +6017,32 @@ class $SyncSettingsTable extends SyncSettings
 
 class SyncSetting extends DataClass implements Insertable<SyncSetting> {
   final int id;
+
+  /// True while this database is enrolled in a vault.
   final bool isEnabled;
   final String? serverUrl;
-  final String? bearerToken;
+  final String? vaultId;
   final String? deviceId;
-  final String? pullCursor;
+  final String? deviceLabel;
+  final int? currentKeyId;
+
+  /// The vault key was rotated and this device does not have the new key.
+  final bool needsKey;
+
+  /// Last change-feed sequence number applied locally.
+  final int pullSeq;
   final DateTime? lastSyncAt;
   final String? lastError;
   const SyncSetting({
     required this.id,
     required this.isEnabled,
     this.serverUrl,
-    this.bearerToken,
+    this.vaultId,
     this.deviceId,
-    this.pullCursor,
+    this.deviceLabel,
+    this.currentKeyId,
+    required this.needsKey,
+    required this.pullSeq,
     this.lastSyncAt,
     this.lastError,
   });
@@ -5968,15 +6054,20 @@ class SyncSetting extends DataClass implements Insertable<SyncSetting> {
     if (!nullToAbsent || serverUrl != null) {
       map['server_url'] = Variable<String>(serverUrl);
     }
-    if (!nullToAbsent || bearerToken != null) {
-      map['bearer_token'] = Variable<String>(bearerToken);
+    if (!nullToAbsent || vaultId != null) {
+      map['vault_id'] = Variable<String>(vaultId);
     }
     if (!nullToAbsent || deviceId != null) {
       map['device_id'] = Variable<String>(deviceId);
     }
-    if (!nullToAbsent || pullCursor != null) {
-      map['pull_cursor'] = Variable<String>(pullCursor);
+    if (!nullToAbsent || deviceLabel != null) {
+      map['device_label'] = Variable<String>(deviceLabel);
     }
+    if (!nullToAbsent || currentKeyId != null) {
+      map['current_key_id'] = Variable<int>(currentKeyId);
+    }
+    map['needs_key'] = Variable<bool>(needsKey);
+    map['pull_seq'] = Variable<int>(pullSeq);
     if (!nullToAbsent || lastSyncAt != null) {
       map['last_sync_at'] = Variable<DateTime>(lastSyncAt);
     }
@@ -5993,15 +6084,20 @@ class SyncSetting extends DataClass implements Insertable<SyncSetting> {
       serverUrl: serverUrl == null && nullToAbsent
           ? const Value.absent()
           : Value(serverUrl),
-      bearerToken: bearerToken == null && nullToAbsent
+      vaultId: vaultId == null && nullToAbsent
           ? const Value.absent()
-          : Value(bearerToken),
+          : Value(vaultId),
       deviceId: deviceId == null && nullToAbsent
           ? const Value.absent()
           : Value(deviceId),
-      pullCursor: pullCursor == null && nullToAbsent
+      deviceLabel: deviceLabel == null && nullToAbsent
           ? const Value.absent()
-          : Value(pullCursor),
+          : Value(deviceLabel),
+      currentKeyId: currentKeyId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(currentKeyId),
+      needsKey: Value(needsKey),
+      pullSeq: Value(pullSeq),
       lastSyncAt: lastSyncAt == null && nullToAbsent
           ? const Value.absent()
           : Value(lastSyncAt),
@@ -6020,9 +6116,12 @@ class SyncSetting extends DataClass implements Insertable<SyncSetting> {
       id: serializer.fromJson<int>(json['id']),
       isEnabled: serializer.fromJson<bool>(json['isEnabled']),
       serverUrl: serializer.fromJson<String?>(json['serverUrl']),
-      bearerToken: serializer.fromJson<String?>(json['bearerToken']),
+      vaultId: serializer.fromJson<String?>(json['vaultId']),
       deviceId: serializer.fromJson<String?>(json['deviceId']),
-      pullCursor: serializer.fromJson<String?>(json['pullCursor']),
+      deviceLabel: serializer.fromJson<String?>(json['deviceLabel']),
+      currentKeyId: serializer.fromJson<int?>(json['currentKeyId']),
+      needsKey: serializer.fromJson<bool>(json['needsKey']),
+      pullSeq: serializer.fromJson<int>(json['pullSeq']),
       lastSyncAt: serializer.fromJson<DateTime?>(json['lastSyncAt']),
       lastError: serializer.fromJson<String?>(json['lastError']),
     );
@@ -6034,9 +6133,12 @@ class SyncSetting extends DataClass implements Insertable<SyncSetting> {
       'id': serializer.toJson<int>(id),
       'isEnabled': serializer.toJson<bool>(isEnabled),
       'serverUrl': serializer.toJson<String?>(serverUrl),
-      'bearerToken': serializer.toJson<String?>(bearerToken),
+      'vaultId': serializer.toJson<String?>(vaultId),
       'deviceId': serializer.toJson<String?>(deviceId),
-      'pullCursor': serializer.toJson<String?>(pullCursor),
+      'deviceLabel': serializer.toJson<String?>(deviceLabel),
+      'currentKeyId': serializer.toJson<int?>(currentKeyId),
+      'needsKey': serializer.toJson<bool>(needsKey),
+      'pullSeq': serializer.toJson<int>(pullSeq),
       'lastSyncAt': serializer.toJson<DateTime?>(lastSyncAt),
       'lastError': serializer.toJson<String?>(lastError),
     };
@@ -6046,18 +6148,24 @@ class SyncSetting extends DataClass implements Insertable<SyncSetting> {
     int? id,
     bool? isEnabled,
     Value<String?> serverUrl = const Value.absent(),
-    Value<String?> bearerToken = const Value.absent(),
+    Value<String?> vaultId = const Value.absent(),
     Value<String?> deviceId = const Value.absent(),
-    Value<String?> pullCursor = const Value.absent(),
+    Value<String?> deviceLabel = const Value.absent(),
+    Value<int?> currentKeyId = const Value.absent(),
+    bool? needsKey,
+    int? pullSeq,
     Value<DateTime?> lastSyncAt = const Value.absent(),
     Value<String?> lastError = const Value.absent(),
   }) => SyncSetting(
     id: id ?? this.id,
     isEnabled: isEnabled ?? this.isEnabled,
     serverUrl: serverUrl.present ? serverUrl.value : this.serverUrl,
-    bearerToken: bearerToken.present ? bearerToken.value : this.bearerToken,
+    vaultId: vaultId.present ? vaultId.value : this.vaultId,
     deviceId: deviceId.present ? deviceId.value : this.deviceId,
-    pullCursor: pullCursor.present ? pullCursor.value : this.pullCursor,
+    deviceLabel: deviceLabel.present ? deviceLabel.value : this.deviceLabel,
+    currentKeyId: currentKeyId.present ? currentKeyId.value : this.currentKeyId,
+    needsKey: needsKey ?? this.needsKey,
+    pullSeq: pullSeq ?? this.pullSeq,
     lastSyncAt: lastSyncAt.present ? lastSyncAt.value : this.lastSyncAt,
     lastError: lastError.present ? lastError.value : this.lastError,
   );
@@ -6066,13 +6174,16 @@ class SyncSetting extends DataClass implements Insertable<SyncSetting> {
       id: data.id.present ? data.id.value : this.id,
       isEnabled: data.isEnabled.present ? data.isEnabled.value : this.isEnabled,
       serverUrl: data.serverUrl.present ? data.serverUrl.value : this.serverUrl,
-      bearerToken: data.bearerToken.present
-          ? data.bearerToken.value
-          : this.bearerToken,
+      vaultId: data.vaultId.present ? data.vaultId.value : this.vaultId,
       deviceId: data.deviceId.present ? data.deviceId.value : this.deviceId,
-      pullCursor: data.pullCursor.present
-          ? data.pullCursor.value
-          : this.pullCursor,
+      deviceLabel: data.deviceLabel.present
+          ? data.deviceLabel.value
+          : this.deviceLabel,
+      currentKeyId: data.currentKeyId.present
+          ? data.currentKeyId.value
+          : this.currentKeyId,
+      needsKey: data.needsKey.present ? data.needsKey.value : this.needsKey,
+      pullSeq: data.pullSeq.present ? data.pullSeq.value : this.pullSeq,
       lastSyncAt: data.lastSyncAt.present
           ? data.lastSyncAt.value
           : this.lastSyncAt,
@@ -6086,9 +6197,12 @@ class SyncSetting extends DataClass implements Insertable<SyncSetting> {
           ..write('id: $id, ')
           ..write('isEnabled: $isEnabled, ')
           ..write('serverUrl: $serverUrl, ')
-          ..write('bearerToken: $bearerToken, ')
+          ..write('vaultId: $vaultId, ')
           ..write('deviceId: $deviceId, ')
-          ..write('pullCursor: $pullCursor, ')
+          ..write('deviceLabel: $deviceLabel, ')
+          ..write('currentKeyId: $currentKeyId, ')
+          ..write('needsKey: $needsKey, ')
+          ..write('pullSeq: $pullSeq, ')
           ..write('lastSyncAt: $lastSyncAt, ')
           ..write('lastError: $lastError')
           ..write(')'))
@@ -6100,9 +6214,12 @@ class SyncSetting extends DataClass implements Insertable<SyncSetting> {
     id,
     isEnabled,
     serverUrl,
-    bearerToken,
+    vaultId,
     deviceId,
-    pullCursor,
+    deviceLabel,
+    currentKeyId,
+    needsKey,
+    pullSeq,
     lastSyncAt,
     lastError,
   );
@@ -6113,9 +6230,12 @@ class SyncSetting extends DataClass implements Insertable<SyncSetting> {
           other.id == this.id &&
           other.isEnabled == this.isEnabled &&
           other.serverUrl == this.serverUrl &&
-          other.bearerToken == this.bearerToken &&
+          other.vaultId == this.vaultId &&
           other.deviceId == this.deviceId &&
-          other.pullCursor == this.pullCursor &&
+          other.deviceLabel == this.deviceLabel &&
+          other.currentKeyId == this.currentKeyId &&
+          other.needsKey == this.needsKey &&
+          other.pullSeq == this.pullSeq &&
           other.lastSyncAt == this.lastSyncAt &&
           other.lastError == this.lastError);
 }
@@ -6124,18 +6244,24 @@ class SyncSettingsCompanion extends UpdateCompanion<SyncSetting> {
   final Value<int> id;
   final Value<bool> isEnabled;
   final Value<String?> serverUrl;
-  final Value<String?> bearerToken;
+  final Value<String?> vaultId;
   final Value<String?> deviceId;
-  final Value<String?> pullCursor;
+  final Value<String?> deviceLabel;
+  final Value<int?> currentKeyId;
+  final Value<bool> needsKey;
+  final Value<int> pullSeq;
   final Value<DateTime?> lastSyncAt;
   final Value<String?> lastError;
   const SyncSettingsCompanion({
     this.id = const Value.absent(),
     this.isEnabled = const Value.absent(),
     this.serverUrl = const Value.absent(),
-    this.bearerToken = const Value.absent(),
+    this.vaultId = const Value.absent(),
     this.deviceId = const Value.absent(),
-    this.pullCursor = const Value.absent(),
+    this.deviceLabel = const Value.absent(),
+    this.currentKeyId = const Value.absent(),
+    this.needsKey = const Value.absent(),
+    this.pullSeq = const Value.absent(),
     this.lastSyncAt = const Value.absent(),
     this.lastError = const Value.absent(),
   });
@@ -6143,9 +6269,12 @@ class SyncSettingsCompanion extends UpdateCompanion<SyncSetting> {
     this.id = const Value.absent(),
     this.isEnabled = const Value.absent(),
     this.serverUrl = const Value.absent(),
-    this.bearerToken = const Value.absent(),
+    this.vaultId = const Value.absent(),
     this.deviceId = const Value.absent(),
-    this.pullCursor = const Value.absent(),
+    this.deviceLabel = const Value.absent(),
+    this.currentKeyId = const Value.absent(),
+    this.needsKey = const Value.absent(),
+    this.pullSeq = const Value.absent(),
     this.lastSyncAt = const Value.absent(),
     this.lastError = const Value.absent(),
   });
@@ -6153,9 +6282,12 @@ class SyncSettingsCompanion extends UpdateCompanion<SyncSetting> {
     Expression<int>? id,
     Expression<bool>? isEnabled,
     Expression<String>? serverUrl,
-    Expression<String>? bearerToken,
+    Expression<String>? vaultId,
     Expression<String>? deviceId,
-    Expression<String>? pullCursor,
+    Expression<String>? deviceLabel,
+    Expression<int>? currentKeyId,
+    Expression<bool>? needsKey,
+    Expression<int>? pullSeq,
     Expression<DateTime>? lastSyncAt,
     Expression<String>? lastError,
   }) {
@@ -6163,9 +6295,12 @@ class SyncSettingsCompanion extends UpdateCompanion<SyncSetting> {
       if (id != null) 'id': id,
       if (isEnabled != null) 'is_enabled': isEnabled,
       if (serverUrl != null) 'server_url': serverUrl,
-      if (bearerToken != null) 'bearer_token': bearerToken,
+      if (vaultId != null) 'vault_id': vaultId,
       if (deviceId != null) 'device_id': deviceId,
-      if (pullCursor != null) 'pull_cursor': pullCursor,
+      if (deviceLabel != null) 'device_label': deviceLabel,
+      if (currentKeyId != null) 'current_key_id': currentKeyId,
+      if (needsKey != null) 'needs_key': needsKey,
+      if (pullSeq != null) 'pull_seq': pullSeq,
       if (lastSyncAt != null) 'last_sync_at': lastSyncAt,
       if (lastError != null) 'last_error': lastError,
     });
@@ -6175,9 +6310,12 @@ class SyncSettingsCompanion extends UpdateCompanion<SyncSetting> {
     Value<int>? id,
     Value<bool>? isEnabled,
     Value<String?>? serverUrl,
-    Value<String?>? bearerToken,
+    Value<String?>? vaultId,
     Value<String?>? deviceId,
-    Value<String?>? pullCursor,
+    Value<String?>? deviceLabel,
+    Value<int?>? currentKeyId,
+    Value<bool>? needsKey,
+    Value<int>? pullSeq,
     Value<DateTime?>? lastSyncAt,
     Value<String?>? lastError,
   }) {
@@ -6185,9 +6323,12 @@ class SyncSettingsCompanion extends UpdateCompanion<SyncSetting> {
       id: id ?? this.id,
       isEnabled: isEnabled ?? this.isEnabled,
       serverUrl: serverUrl ?? this.serverUrl,
-      bearerToken: bearerToken ?? this.bearerToken,
+      vaultId: vaultId ?? this.vaultId,
       deviceId: deviceId ?? this.deviceId,
-      pullCursor: pullCursor ?? this.pullCursor,
+      deviceLabel: deviceLabel ?? this.deviceLabel,
+      currentKeyId: currentKeyId ?? this.currentKeyId,
+      needsKey: needsKey ?? this.needsKey,
+      pullSeq: pullSeq ?? this.pullSeq,
       lastSyncAt: lastSyncAt ?? this.lastSyncAt,
       lastError: lastError ?? this.lastError,
     );
@@ -6205,14 +6346,23 @@ class SyncSettingsCompanion extends UpdateCompanion<SyncSetting> {
     if (serverUrl.present) {
       map['server_url'] = Variable<String>(serverUrl.value);
     }
-    if (bearerToken.present) {
-      map['bearer_token'] = Variable<String>(bearerToken.value);
+    if (vaultId.present) {
+      map['vault_id'] = Variable<String>(vaultId.value);
     }
     if (deviceId.present) {
       map['device_id'] = Variable<String>(deviceId.value);
     }
-    if (pullCursor.present) {
-      map['pull_cursor'] = Variable<String>(pullCursor.value);
+    if (deviceLabel.present) {
+      map['device_label'] = Variable<String>(deviceLabel.value);
+    }
+    if (currentKeyId.present) {
+      map['current_key_id'] = Variable<int>(currentKeyId.value);
+    }
+    if (needsKey.present) {
+      map['needs_key'] = Variable<bool>(needsKey.value);
+    }
+    if (pullSeq.present) {
+      map['pull_seq'] = Variable<int>(pullSeq.value);
     }
     if (lastSyncAt.present) {
       map['last_sync_at'] = Variable<DateTime>(lastSyncAt.value);
@@ -6229,9 +6379,12 @@ class SyncSettingsCompanion extends UpdateCompanion<SyncSetting> {
           ..write('id: $id, ')
           ..write('isEnabled: $isEnabled, ')
           ..write('serverUrl: $serverUrl, ')
-          ..write('bearerToken: $bearerToken, ')
+          ..write('vaultId: $vaultId, ')
           ..write('deviceId: $deviceId, ')
-          ..write('pullCursor: $pullCursor, ')
+          ..write('deviceLabel: $deviceLabel, ')
+          ..write('currentKeyId: $currentKeyId, ')
+          ..write('needsKey: $needsKey, ')
+          ..write('pullSeq: $pullSeq, ')
           ..write('lastSyncAt: $lastSyncAt, ')
           ..write('lastError: $lastError')
           ..write(')'))
@@ -7454,6 +7607,430 @@ class SyncConflictsCompanion extends UpdateCompanion<SyncConflict> {
   }
 }
 
+class $DeferredRemoteChangesTable extends DeferredRemoteChanges
+    with TableInfo<$DeferredRemoteChangesTable, DeferredRemoteChange> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $DeferredRemoteChangesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _entityTypeMeta = const VerificationMeta(
+    'entityType',
+  );
+  @override
+  late final GeneratedColumn<String> entityType = GeneratedColumn<String>(
+    'entity_type',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _entitySyncIdMeta = const VerificationMeta(
+    'entitySyncId',
+  );
+  @override
+  late final GeneratedColumn<String> entitySyncId = GeneratedColumn<String>(
+    'entity_sync_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways('UNIQUE'),
+  );
+  static const VerificationMeta _serverVersionMeta = const VerificationMeta(
+    'serverVersion',
+  );
+  @override
+  late final GeneratedColumn<int> serverVersion = GeneratedColumn<int>(
+    'server_version',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _payloadJsonMeta = const VerificationMeta(
+    'payloadJson',
+  );
+  @override
+  late final GeneratedColumn<String> payloadJson = GeneratedColumn<String>(
+    'payload_json',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    entityType,
+    entitySyncId,
+    serverVersion,
+    payloadJson,
+    createdAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'deferred_remote_changes';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<DeferredRemoteChange> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('entity_type')) {
+      context.handle(
+        _entityTypeMeta,
+        entityType.isAcceptableOrUnknown(data['entity_type']!, _entityTypeMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_entityTypeMeta);
+    }
+    if (data.containsKey('entity_sync_id')) {
+      context.handle(
+        _entitySyncIdMeta,
+        entitySyncId.isAcceptableOrUnknown(
+          data['entity_sync_id']!,
+          _entitySyncIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_entitySyncIdMeta);
+    }
+    if (data.containsKey('server_version')) {
+      context.handle(
+        _serverVersionMeta,
+        serverVersion.isAcceptableOrUnknown(
+          data['server_version']!,
+          _serverVersionMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_serverVersionMeta);
+    }
+    if (data.containsKey('payload_json')) {
+      context.handle(
+        _payloadJsonMeta,
+        payloadJson.isAcceptableOrUnknown(
+          data['payload_json']!,
+          _payloadJsonMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_payloadJsonMeta);
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  DeferredRemoteChange map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return DeferredRemoteChange(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      entityType: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}entity_type'],
+      )!,
+      entitySyncId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}entity_sync_id'],
+      )!,
+      serverVersion: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}server_version'],
+      )!,
+      payloadJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}payload_json'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+    );
+  }
+
+  @override
+  $DeferredRemoteChangesTable createAlias(String alias) {
+    return $DeferredRemoteChangesTable(attachedDatabase, alias);
+  }
+}
+
+class DeferredRemoteChange extends DataClass
+    implements Insertable<DeferredRemoteChange> {
+  final int id;
+  final String entityType;
+  final String entitySyncId;
+  final int serverVersion;
+  final String payloadJson;
+  final DateTime createdAt;
+  const DeferredRemoteChange({
+    required this.id,
+    required this.entityType,
+    required this.entitySyncId,
+    required this.serverVersion,
+    required this.payloadJson,
+    required this.createdAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['entity_type'] = Variable<String>(entityType);
+    map['entity_sync_id'] = Variable<String>(entitySyncId);
+    map['server_version'] = Variable<int>(serverVersion);
+    map['payload_json'] = Variable<String>(payloadJson);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    return map;
+  }
+
+  DeferredRemoteChangesCompanion toCompanion(bool nullToAbsent) {
+    return DeferredRemoteChangesCompanion(
+      id: Value(id),
+      entityType: Value(entityType),
+      entitySyncId: Value(entitySyncId),
+      serverVersion: Value(serverVersion),
+      payloadJson: Value(payloadJson),
+      createdAt: Value(createdAt),
+    );
+  }
+
+  factory DeferredRemoteChange.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return DeferredRemoteChange(
+      id: serializer.fromJson<int>(json['id']),
+      entityType: serializer.fromJson<String>(json['entityType']),
+      entitySyncId: serializer.fromJson<String>(json['entitySyncId']),
+      serverVersion: serializer.fromJson<int>(json['serverVersion']),
+      payloadJson: serializer.fromJson<String>(json['payloadJson']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'entityType': serializer.toJson<String>(entityType),
+      'entitySyncId': serializer.toJson<String>(entitySyncId),
+      'serverVersion': serializer.toJson<int>(serverVersion),
+      'payloadJson': serializer.toJson<String>(payloadJson),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+    };
+  }
+
+  DeferredRemoteChange copyWith({
+    int? id,
+    String? entityType,
+    String? entitySyncId,
+    int? serverVersion,
+    String? payloadJson,
+    DateTime? createdAt,
+  }) => DeferredRemoteChange(
+    id: id ?? this.id,
+    entityType: entityType ?? this.entityType,
+    entitySyncId: entitySyncId ?? this.entitySyncId,
+    serverVersion: serverVersion ?? this.serverVersion,
+    payloadJson: payloadJson ?? this.payloadJson,
+    createdAt: createdAt ?? this.createdAt,
+  );
+  DeferredRemoteChange copyWithCompanion(DeferredRemoteChangesCompanion data) {
+    return DeferredRemoteChange(
+      id: data.id.present ? data.id.value : this.id,
+      entityType: data.entityType.present
+          ? data.entityType.value
+          : this.entityType,
+      entitySyncId: data.entitySyncId.present
+          ? data.entitySyncId.value
+          : this.entitySyncId,
+      serverVersion: data.serverVersion.present
+          ? data.serverVersion.value
+          : this.serverVersion,
+      payloadJson: data.payloadJson.present
+          ? data.payloadJson.value
+          : this.payloadJson,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DeferredRemoteChange(')
+          ..write('id: $id, ')
+          ..write('entityType: $entityType, ')
+          ..write('entitySyncId: $entitySyncId, ')
+          ..write('serverVersion: $serverVersion, ')
+          ..write('payloadJson: $payloadJson, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    entityType,
+    entitySyncId,
+    serverVersion,
+    payloadJson,
+    createdAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is DeferredRemoteChange &&
+          other.id == this.id &&
+          other.entityType == this.entityType &&
+          other.entitySyncId == this.entitySyncId &&
+          other.serverVersion == this.serverVersion &&
+          other.payloadJson == this.payloadJson &&
+          other.createdAt == this.createdAt);
+}
+
+class DeferredRemoteChangesCompanion
+    extends UpdateCompanion<DeferredRemoteChange> {
+  final Value<int> id;
+  final Value<String> entityType;
+  final Value<String> entitySyncId;
+  final Value<int> serverVersion;
+  final Value<String> payloadJson;
+  final Value<DateTime> createdAt;
+  const DeferredRemoteChangesCompanion({
+    this.id = const Value.absent(),
+    this.entityType = const Value.absent(),
+    this.entitySyncId = const Value.absent(),
+    this.serverVersion = const Value.absent(),
+    this.payloadJson = const Value.absent(),
+    this.createdAt = const Value.absent(),
+  });
+  DeferredRemoteChangesCompanion.insert({
+    this.id = const Value.absent(),
+    required String entityType,
+    required String entitySyncId,
+    required int serverVersion,
+    required String payloadJson,
+    this.createdAt = const Value.absent(),
+  }) : entityType = Value(entityType),
+       entitySyncId = Value(entitySyncId),
+       serverVersion = Value(serverVersion),
+       payloadJson = Value(payloadJson);
+  static Insertable<DeferredRemoteChange> custom({
+    Expression<int>? id,
+    Expression<String>? entityType,
+    Expression<String>? entitySyncId,
+    Expression<int>? serverVersion,
+    Expression<String>? payloadJson,
+    Expression<DateTime>? createdAt,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (entityType != null) 'entity_type': entityType,
+      if (entitySyncId != null) 'entity_sync_id': entitySyncId,
+      if (serverVersion != null) 'server_version': serverVersion,
+      if (payloadJson != null) 'payload_json': payloadJson,
+      if (createdAt != null) 'created_at': createdAt,
+    });
+  }
+
+  DeferredRemoteChangesCompanion copyWith({
+    Value<int>? id,
+    Value<String>? entityType,
+    Value<String>? entitySyncId,
+    Value<int>? serverVersion,
+    Value<String>? payloadJson,
+    Value<DateTime>? createdAt,
+  }) {
+    return DeferredRemoteChangesCompanion(
+      id: id ?? this.id,
+      entityType: entityType ?? this.entityType,
+      entitySyncId: entitySyncId ?? this.entitySyncId,
+      serverVersion: serverVersion ?? this.serverVersion,
+      payloadJson: payloadJson ?? this.payloadJson,
+      createdAt: createdAt ?? this.createdAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (entityType.present) {
+      map['entity_type'] = Variable<String>(entityType.value);
+    }
+    if (entitySyncId.present) {
+      map['entity_sync_id'] = Variable<String>(entitySyncId.value);
+    }
+    if (serverVersion.present) {
+      map['server_version'] = Variable<int>(serverVersion.value);
+    }
+    if (payloadJson.present) {
+      map['payload_json'] = Variable<String>(payloadJson.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DeferredRemoteChangesCompanion(')
+          ..write('id: $id, ')
+          ..write('entityType: $entityType, ')
+          ..write('entitySyncId: $entitySyncId, ')
+          ..write('serverVersion: $serverVersion, ')
+          ..write('payloadJson: $payloadJson, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -7471,6 +8048,12 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $PendingSyncOperationsTable pendingSyncOperations =
       $PendingSyncOperationsTable(this);
   late final $SyncConflictsTable syncConflicts = $SyncConflictsTable(this);
+  late final $DeferredRemoteChangesTable deferredRemoteChanges =
+      $DeferredRemoteChangesTable(this);
+  late final Index pendingSyncOperationsEntitySyncId = Index(
+    'pending_sync_operations_entity_sync_id',
+    'CREATE INDEX pending_sync_operations_entity_sync_id ON pending_sync_operations (entity_sync_id)',
+  );
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -7486,6 +8069,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     syncSettings,
     pendingSyncOperations,
     syncConflicts,
+    deferredRemoteChanges,
+    pendingSyncOperationsEntitySyncId,
   ];
 }
 
@@ -11704,9 +12289,12 @@ typedef $$SyncSettingsTableCreateCompanionBuilder =
       Value<int> id,
       Value<bool> isEnabled,
       Value<String?> serverUrl,
-      Value<String?> bearerToken,
+      Value<String?> vaultId,
       Value<String?> deviceId,
-      Value<String?> pullCursor,
+      Value<String?> deviceLabel,
+      Value<int?> currentKeyId,
+      Value<bool> needsKey,
+      Value<int> pullSeq,
       Value<DateTime?> lastSyncAt,
       Value<String?> lastError,
     });
@@ -11715,9 +12303,12 @@ typedef $$SyncSettingsTableUpdateCompanionBuilder =
       Value<int> id,
       Value<bool> isEnabled,
       Value<String?> serverUrl,
-      Value<String?> bearerToken,
+      Value<String?> vaultId,
       Value<String?> deviceId,
-      Value<String?> pullCursor,
+      Value<String?> deviceLabel,
+      Value<int?> currentKeyId,
+      Value<bool> needsKey,
+      Value<int> pullSeq,
       Value<DateTime?> lastSyncAt,
       Value<String?> lastError,
     });
@@ -11746,8 +12337,8 @@ class $$SyncSettingsTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<String> get bearerToken => $composableBuilder(
-    column: $table.bearerToken,
+  ColumnFilters<String> get vaultId => $composableBuilder(
+    column: $table.vaultId,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -11756,8 +12347,23 @@ class $$SyncSettingsTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<String> get pullCursor => $composableBuilder(
-    column: $table.pullCursor,
+  ColumnFilters<String> get deviceLabel => $composableBuilder(
+    column: $table.deviceLabel,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get currentKeyId => $composableBuilder(
+    column: $table.currentKeyId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get needsKey => $composableBuilder(
+    column: $table.needsKey,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get pullSeq => $composableBuilder(
+    column: $table.pullSeq,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -11796,8 +12402,8 @@ class $$SyncSettingsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<String> get bearerToken => $composableBuilder(
-    column: $table.bearerToken,
+  ColumnOrderings<String> get vaultId => $composableBuilder(
+    column: $table.vaultId,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -11806,8 +12412,23 @@ class $$SyncSettingsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<String> get pullCursor => $composableBuilder(
-    column: $table.pullCursor,
+  ColumnOrderings<String> get deviceLabel => $composableBuilder(
+    column: $table.deviceLabel,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get currentKeyId => $composableBuilder(
+    column: $table.currentKeyId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get needsKey => $composableBuilder(
+    column: $table.needsKey,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get pullSeq => $composableBuilder(
+    column: $table.pullSeq,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -11840,18 +12461,27 @@ class $$SyncSettingsTableAnnotationComposer
   GeneratedColumn<String> get serverUrl =>
       $composableBuilder(column: $table.serverUrl, builder: (column) => column);
 
-  GeneratedColumn<String> get bearerToken => $composableBuilder(
-    column: $table.bearerToken,
-    builder: (column) => column,
-  );
+  GeneratedColumn<String> get vaultId =>
+      $composableBuilder(column: $table.vaultId, builder: (column) => column);
 
   GeneratedColumn<String> get deviceId =>
       $composableBuilder(column: $table.deviceId, builder: (column) => column);
 
-  GeneratedColumn<String> get pullCursor => $composableBuilder(
-    column: $table.pullCursor,
+  GeneratedColumn<String> get deviceLabel => $composableBuilder(
+    column: $table.deviceLabel,
     builder: (column) => column,
   );
+
+  GeneratedColumn<int> get currentKeyId => $composableBuilder(
+    column: $table.currentKeyId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get needsKey =>
+      $composableBuilder(column: $table.needsKey, builder: (column) => column);
+
+  GeneratedColumn<int> get pullSeq =>
+      $composableBuilder(column: $table.pullSeq, builder: (column) => column);
 
   GeneratedColumn<DateTime> get lastSyncAt => $composableBuilder(
     column: $table.lastSyncAt,
@@ -11896,18 +12526,24 @@ class $$SyncSettingsTableTableManager
                 Value<int> id = const Value.absent(),
                 Value<bool> isEnabled = const Value.absent(),
                 Value<String?> serverUrl = const Value.absent(),
-                Value<String?> bearerToken = const Value.absent(),
+                Value<String?> vaultId = const Value.absent(),
                 Value<String?> deviceId = const Value.absent(),
-                Value<String?> pullCursor = const Value.absent(),
+                Value<String?> deviceLabel = const Value.absent(),
+                Value<int?> currentKeyId = const Value.absent(),
+                Value<bool> needsKey = const Value.absent(),
+                Value<int> pullSeq = const Value.absent(),
                 Value<DateTime?> lastSyncAt = const Value.absent(),
                 Value<String?> lastError = const Value.absent(),
               }) => SyncSettingsCompanion(
                 id: id,
                 isEnabled: isEnabled,
                 serverUrl: serverUrl,
-                bearerToken: bearerToken,
+                vaultId: vaultId,
                 deviceId: deviceId,
-                pullCursor: pullCursor,
+                deviceLabel: deviceLabel,
+                currentKeyId: currentKeyId,
+                needsKey: needsKey,
+                pullSeq: pullSeq,
                 lastSyncAt: lastSyncAt,
                 lastError: lastError,
               ),
@@ -11916,18 +12552,24 @@ class $$SyncSettingsTableTableManager
                 Value<int> id = const Value.absent(),
                 Value<bool> isEnabled = const Value.absent(),
                 Value<String?> serverUrl = const Value.absent(),
-                Value<String?> bearerToken = const Value.absent(),
+                Value<String?> vaultId = const Value.absent(),
                 Value<String?> deviceId = const Value.absent(),
-                Value<String?> pullCursor = const Value.absent(),
+                Value<String?> deviceLabel = const Value.absent(),
+                Value<int?> currentKeyId = const Value.absent(),
+                Value<bool> needsKey = const Value.absent(),
+                Value<int> pullSeq = const Value.absent(),
                 Value<DateTime?> lastSyncAt = const Value.absent(),
                 Value<String?> lastError = const Value.absent(),
               }) => SyncSettingsCompanion.insert(
                 id: id,
                 isEnabled: isEnabled,
                 serverUrl: serverUrl,
-                bearerToken: bearerToken,
+                vaultId: vaultId,
                 deviceId: deviceId,
-                pullCursor: pullCursor,
+                deviceLabel: deviceLabel,
+                currentKeyId: currentKeyId,
+                needsKey: needsKey,
+                pullSeq: pullSeq,
                 lastSyncAt: lastSyncAt,
                 lastError: lastError,
               ),
@@ -12562,6 +13204,246 @@ typedef $$SyncConflictsTableProcessedTableManager =
       SyncConflict,
       PrefetchHooks Function()
     >;
+typedef $$DeferredRemoteChangesTableCreateCompanionBuilder =
+    DeferredRemoteChangesCompanion Function({
+      Value<int> id,
+      required String entityType,
+      required String entitySyncId,
+      required int serverVersion,
+      required String payloadJson,
+      Value<DateTime> createdAt,
+    });
+typedef $$DeferredRemoteChangesTableUpdateCompanionBuilder =
+    DeferredRemoteChangesCompanion Function({
+      Value<int> id,
+      Value<String> entityType,
+      Value<String> entitySyncId,
+      Value<int> serverVersion,
+      Value<String> payloadJson,
+      Value<DateTime> createdAt,
+    });
+
+class $$DeferredRemoteChangesTableFilterComposer
+    extends Composer<_$AppDatabase, $DeferredRemoteChangesTable> {
+  $$DeferredRemoteChangesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get entityType => $composableBuilder(
+    column: $table.entityType,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get entitySyncId => $composableBuilder(
+    column: $table.entitySyncId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get serverVersion => $composableBuilder(
+    column: $table.serverVersion,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get payloadJson => $composableBuilder(
+    column: $table.payloadJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$DeferredRemoteChangesTableOrderingComposer
+    extends Composer<_$AppDatabase, $DeferredRemoteChangesTable> {
+  $$DeferredRemoteChangesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get entityType => $composableBuilder(
+    column: $table.entityType,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get entitySyncId => $composableBuilder(
+    column: $table.entitySyncId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get serverVersion => $composableBuilder(
+    column: $table.serverVersion,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get payloadJson => $composableBuilder(
+    column: $table.payloadJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$DeferredRemoteChangesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $DeferredRemoteChangesTable> {
+  $$DeferredRemoteChangesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get entityType => $composableBuilder(
+    column: $table.entityType,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get entitySyncId => $composableBuilder(
+    column: $table.entitySyncId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get serverVersion => $composableBuilder(
+    column: $table.serverVersion,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get payloadJson => $composableBuilder(
+    column: $table.payloadJson,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+}
+
+class $$DeferredRemoteChangesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $DeferredRemoteChangesTable,
+          DeferredRemoteChange,
+          $$DeferredRemoteChangesTableFilterComposer,
+          $$DeferredRemoteChangesTableOrderingComposer,
+          $$DeferredRemoteChangesTableAnnotationComposer,
+          $$DeferredRemoteChangesTableCreateCompanionBuilder,
+          $$DeferredRemoteChangesTableUpdateCompanionBuilder,
+          (
+            DeferredRemoteChange,
+            BaseReferences<
+              _$AppDatabase,
+              $DeferredRemoteChangesTable,
+              DeferredRemoteChange
+            >,
+          ),
+          DeferredRemoteChange,
+          PrefetchHooks Function()
+        > {
+  $$DeferredRemoteChangesTableTableManager(
+    _$AppDatabase db,
+    $DeferredRemoteChangesTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$DeferredRemoteChangesTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$DeferredRemoteChangesTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$DeferredRemoteChangesTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String> entityType = const Value.absent(),
+                Value<String> entitySyncId = const Value.absent(),
+                Value<int> serverVersion = const Value.absent(),
+                Value<String> payloadJson = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+              }) => DeferredRemoteChangesCompanion(
+                id: id,
+                entityType: entityType,
+                entitySyncId: entitySyncId,
+                serverVersion: serverVersion,
+                payloadJson: payloadJson,
+                createdAt: createdAt,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required String entityType,
+                required String entitySyncId,
+                required int serverVersion,
+                required String payloadJson,
+                Value<DateTime> createdAt = const Value.absent(),
+              }) => DeferredRemoteChangesCompanion.insert(
+                id: id,
+                entityType: entityType,
+                entitySyncId: entitySyncId,
+                serverVersion: serverVersion,
+                payloadJson: payloadJson,
+                createdAt: createdAt,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$DeferredRemoteChangesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $DeferredRemoteChangesTable,
+      DeferredRemoteChange,
+      $$DeferredRemoteChangesTableFilterComposer,
+      $$DeferredRemoteChangesTableOrderingComposer,
+      $$DeferredRemoteChangesTableAnnotationComposer,
+      $$DeferredRemoteChangesTableCreateCompanionBuilder,
+      $$DeferredRemoteChangesTableUpdateCompanionBuilder,
+      (
+        DeferredRemoteChange,
+        BaseReferences<
+          _$AppDatabase,
+          $DeferredRemoteChangesTable,
+          DeferredRemoteChange
+        >,
+      ),
+      DeferredRemoteChange,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -12589,4 +13471,6 @@ class $AppDatabaseManager {
       $$PendingSyncOperationsTableTableManager(_db, _db.pendingSyncOperations);
   $$SyncConflictsTableTableManager get syncConflicts =>
       $$SyncConflictsTableTableManager(_db, _db.syncConflicts);
+  $$DeferredRemoteChangesTableTableManager get deferredRemoteChanges =>
+      $$DeferredRemoteChangesTableTableManager(_db, _db.deferredRemoteChanges);
 }

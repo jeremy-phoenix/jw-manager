@@ -1,10 +1,15 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET"/>
 
+    <!-- allowBackup is off: the local database holds congregation records in
+         plain form and must not be copied into Google Drive backups, and
+         restored Keystore-backed sync secrets could not be decrypted anyway. -->
     <application
         android:label="congregation_manager"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:allowBackup="false"
+        android:fullBackupContent="false">
         <activity
             android:name=".MainActivity"
             android:exported="true"

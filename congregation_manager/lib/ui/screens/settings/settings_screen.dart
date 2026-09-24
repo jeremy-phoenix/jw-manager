@@ -13,8 +13,8 @@ import 'package:congregation_manager/providers/group_providers.dart';
 import 'package:congregation_manager/providers/person_providers.dart';
 import 'package:congregation_manager/providers/service_report_providers.dart';
 import 'package:congregation_manager/providers/settings_providers.dart';
-import 'package:congregation_manager/providers/sync_providers.dart';
 import 'package:congregation_manager/ui/screens/import/csv_sync_preview_screen.dart';
+import 'package:congregation_manager/ui/screens/settings/sync/online_sync_card.dart';
 import 'package:congregation_manager/ui/screens/import/import_persons_screen.dart';
 import 'package:congregation_manager/services/publisher_record_reader.dart';
 import 'package:go_router/go_router.dart';
@@ -49,7 +49,7 @@ class SettingsScreen extends ConsumerWidget {
                 _SettingsTile(
                   icon: Icons.cloud_sync_outlined,
                   title: 'Online Sync',
-                  subtitle: 'Cloud server, token, and sync status',
+                  subtitle: 'End-to-end encrypted sync between devices',
                   route: '/settings/sync',
                 ),
                 const Divider(height: 1),
@@ -512,6 +512,15 @@ class _DatabaseLocationCardState extends ConsumerState<_DatabaseLocationCard> {
                   location.currentPath,
                   style: theme.textTheme.bodySmall,
                 ),
+                const SizedBox(height: 8),
+                Text(
+                  'The database file is not encrypted. Keep it out of '
+                  'cloud-synced folders such as OneDrive, Dropbox or Google '
+                  'Drive; use Online Sync to share data between devices.',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
                 const SizedBox(height: 12),
                 Wrap(
                   spacing: 8,
@@ -666,7 +675,7 @@ class OnlineSyncSettingsScreen extends StatelessWidget {
       appBar: AppBar(title: const Text('Online Sync')),
       body: ListView(
         padding: const EdgeInsets.all(16),
-        children: [_OnlineSyncCard()],
+        children: const [OnlineSyncCard()],
       ),
     );
   }
@@ -707,193 +716,6 @@ class AboutSettingsScreen extends StatelessWidget {
         ],
       ),
     );
-  }
-}
-
-class _OnlineSyncCard extends ConsumerStatefulWidget {
-  const _OnlineSyncCard();
-
-  @override
-  ConsumerState<_OnlineSyncCard> createState() => _OnlineSyncCardState();
-}
-
-class _OnlineSyncCardState extends ConsumerState<_OnlineSyncCard> {
-  final _serverUrlController = TextEditingController();
-  final _tokenController = TextEditingController();
-  bool _enabled = false;
-  bool _syncing = false;
-  String? _loadedDeviceId;
-
-  @override
-  void dispose() {
-    _serverUrlController.dispose();
-    _tokenController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final settingsAsync = ref.watch(syncSettingsProvider);
-    final pendingCount =
-        ref.watch(pendingSyncOperationCountProvider).value ?? 0;
-    final conflictCount = ref.watch(openSyncConflictCountProvider).value ?? 0;
-
-    return settingsAsync.when(
-      loading: () => const Card(
-        child: Padding(
-          padding: EdgeInsets.all(16),
-          child: Center(child: CircularProgressIndicator()),
-        ),
-      ),
-      error: (error, _) => Card(
-        child: ListTile(
-          leading: const Icon(Icons.cloud_off),
-          title: const Text('Sync unavailable'),
-          subtitle: Text('$error'),
-        ),
-      ),
-      data: (settings) {
-        if (_loadedDeviceId != settings.deviceId) {
-          _enabled = settings.isEnabled;
-          _serverUrlController.text = settings.serverUrl ?? '';
-          _tokenController.text = settings.bearerToken ?? '';
-          _loadedDeviceId = settings.deviceId;
-        }
-
-        final lastSync = settings.lastSyncAt == null
-            ? 'Never'
-            : DateFormat.yMMMd().add_jm().format(
-                settings.lastSyncAt!.toLocal(),
-              );
-
-        return Card(
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              children: [
-                SwitchListTile(
-                  secondary: Icon(
-                    _enabled ? Icons.cloud_done : Icons.cloud_off,
-                  ),
-                  title: const Text('Cloud Sync'),
-                  subtitle: Text('Last sync: $lastSync'),
-                  value: _enabled,
-                  onChanged: (value) => setState(() => _enabled = value),
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: _serverUrlController,
-                  enabled: _enabled,
-                  decoration: const InputDecoration(
-                    labelText: 'Server URL',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.link),
-                  ),
-                  keyboardType: TextInputType.url,
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _tokenController,
-                  enabled: _enabled,
-                  decoration: const InputDecoration(
-                    labelText: 'Sync Token',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.key),
-                  ),
-                  obscureText: true,
-                ),
-                const SizedBox(height: 12),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    Chip(
-                      avatar: const Icon(Icons.pending_actions),
-                      label: Text('$pendingCount pending'),
-                    ),
-                    Chip(
-                      avatar: const Icon(Icons.report_problem_outlined),
-                      label: Text('$conflictCount conflicts'),
-                    ),
-                    if (settings.lastError != null)
-                      Chip(
-                        avatar: Icon(
-                          Icons.error_outline,
-                          color: Theme.of(context).colorScheme.error,
-                        ),
-                        label: Text(settings.lastError!),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    FilledButton.tonalIcon(
-                      icon: const Icon(Icons.save_outlined),
-                      label: const Text('Save'),
-                      onPressed: _saveSettings,
-                    ),
-                    const SizedBox(width: 8),
-                    FilledButton.icon(
-                      icon: _syncing
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.sync),
-                      label: const Text('Sync Now'),
-                      onPressed: !_enabled || _syncing ? null : _syncNow,
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Future<void> _saveSettings() async {
-    await ref
-        .read(databaseProvider)
-        .saveSyncSettings(
-          isEnabled: _enabled,
-          serverUrl: _serverUrlController.text,
-          bearerToken: _tokenController.text,
-        );
-    if (mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Sync settings saved.')));
-    }
-  }
-
-  Future<void> _syncNow() async {
-    setState(() => _syncing = true);
-    try {
-      await _saveSettings();
-      final result = await ref.read(syncServiceProvider).syncNow();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Sync complete: ${result.pushed} pushed, ${result.pulled} pulled, ${result.conflicts} conflicts.',
-            ),
-          ),
-        );
-      }
-    } catch (error) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Sync failed: $error')));
-      }
-    } finally {
-      if (mounted) setState(() => _syncing = false);
-    }
   }
 }
 

@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:congregation_manager/data/database.dart';
 import 'package:congregation_manager/providers/congregation_providers.dart';
+import 'package:congregation_manager/providers/sync_providers.dart';
 import 'package:congregation_manager/routing/app_router.dart';
 import 'package:congregation_manager/providers/settings_providers.dart';
 
@@ -54,11 +56,13 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final prefs = await SharedPreferences.getInstance();
   final initialCongId = prefs.getInt('currentCongregationId');
+  final container = ProviderContainer(
+    overrides: [initialCongregationIdProvider.overrideWithValue(initialCongId)],
+  );
+  container.read(syncSchedulerProvider).start();
   runApp(
-    ProviderScope(
-      overrides: [
-        initialCongregationIdProvider.overrideWithValue(initialCongId),
-      ],
+    UncontrolledProviderScope(
+      container: container,
       child: const CongregationManagerApp(),
     ),
   );
@@ -69,6 +73,25 @@ class CongregationManagerApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Sync can add congregations (e.g. a background download after joining)
+    // or delete the selected one: keep a valid selection, falling back to
+    // the welcome screen when none are left.
+    ref.listen<AsyncValue<List<Congregation>>>(congregationsProvider, (
+      _,
+      next,
+    ) {
+      final congregations = next.value;
+      final current = ref.read(currentCongregationIdProvider);
+      if (congregations == null || congregations.any((c) => c.id == current)) {
+        return;
+      }
+      final selection = ref.read(currentCongregationIdProvider.notifier);
+      if (congregations.isNotEmpty) {
+        selection.set(congregations.first.id);
+      } else if (current != null) {
+        selection.clear();
+      }
+    });
     final themeMode = ref.watch(themeModeProvider);
     final router = ref.watch(appRouterProvider);
     final lightTheme = _buildTheme(Brightness.light);

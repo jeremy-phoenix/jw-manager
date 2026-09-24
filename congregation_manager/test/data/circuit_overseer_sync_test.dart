@@ -17,9 +17,13 @@ void main() {
   tearDown(() => db.close());
 
   test('insert queues sync payloads with circuit overseer and email', () async {
-    await db.saveSyncSettings(
-      isEnabled: true,
+    await db.activateSyncVault(
       serverUrl: 'https://example.com',
+      vaultId: '00000000-0000-4000-8000-000000000001',
+      deviceId: '00000000-0000-4000-8000-000000000002',
+      deviceLabel: 'Test device',
+      keyId: 1,
+      uploadLocalData: false,
     );
 
     final congId = await db.insertCongregation(
@@ -168,6 +172,6 @@ void main() {
         .customSelect('PRAGMA user_version')
         .getSingle()
         .then((row) => row.data.values.first);
-    expect(version, 6);
+    expect(version, 8);
   });
 }
