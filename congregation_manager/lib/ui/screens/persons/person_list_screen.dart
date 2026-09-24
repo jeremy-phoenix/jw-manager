@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:intl/intl.dart';
 import 'package:congregation_manager/data/database.dart';
 import 'package:congregation_manager/data/enums.dart';
 import 'package:congregation_manager/providers/congregation_providers.dart';
@@ -14,6 +15,7 @@ import 'package:congregation_manager/services/export_progress.dart';
 import 'package:congregation_manager/services/publisher_record_reader.dart';
 import 'package:congregation_manager/ui/dialogs/export_records_dialog.dart';
 import 'package:congregation_manager/ui/dialogs/export_progress_dialog.dart';
+import 'package:congregation_manager/ui/dialogs/publisher_contact_list_options_dialog.dart';
 import 'package:congregation_manager/ui/screens/import/csv_sync_preview_screen.dart';
 import 'package:congregation_manager/ui/screens/import/import_persons_screen.dart';
 import 'package:congregation_manager/ui/widgets/app_popup_menu_item.dart';
@@ -27,11 +29,11 @@ class PersonListScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final filteredPersons = ref.watch(filteredPersonsProvider);
     final searchQuery = ref.watch(personSearchQueryProvider);
-    final showInactivePersons = ref.watch(showInactivePersonsProvider);
+    final listOptions = ref.watch(personListOptionsProvider);
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Publishers'),
+        title: const Text('Congregation Persons'),
         actions: [
           PopupMenuButton<String>(
             icon: const Icon(Icons.upload_file),
@@ -71,7 +73,7 @@ class PersonListScreen extends ConsumerWidget {
                 case 'list':
                   svc.previewPublisherList(context);
                 case 'contact':
-                  svc.previewPublisherContactList(context);
+                  _previewPublisherContactList(context, svc);
                 case 'emergency':
                   svc.previewEmergencyContactList(context);
                 case 'summary':
@@ -169,7 +171,7 @@ class PersonListScreen extends ConsumerWidget {
                 Expanded(
                   child: SearchTextField(
                     query: searchQuery,
-                    hintText: 'Search publishers...',
+                    hintText: 'Search persons...',
                     onChanged: (value) =>
                         ref.read(personSearchQueryProvider.notifier).set(value),
                     onClear: () =>
@@ -177,10 +179,7 @@ class PersonListScreen extends ConsumerWidget {
                   ),
                 ),
                 const SizedBox(width: 8),
-                _buildMoreFilters(
-                  ref,
-                  showInactivePersons: showInactivePersons,
-                ),
+                _buildMoreFilters(context, ref, options: listOptions),
               ],
             ),
           ),
@@ -188,9 +187,14 @@ class PersonListScreen extends ConsumerWidget {
             child: filteredPersons.when(
               data: (persons) {
                 if (persons.isEmpty) {
-                  return const Center(child: Text('No publishers found.'));
+                  return const Center(child: Text('No persons found.'));
                 }
-                return _PersonDataTable(persons: persons);
+                return _PersonDataTable(
+                  key: ValueKey(
+                    '${listOptions.sortField.name}-${listOptions.sortAscending}',
+                  ),
+                  persons: persons,
+                );
               },
               loading: () => const Center(child: CircularProgressIndicator()),
               error: (e, _) => Center(child: Text('Error: $e')),
@@ -201,27 +205,28 @@ class PersonListScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildMoreFilters(WidgetRef ref, {required bool showInactivePersons}) {
-    return PopupMenuButton<String>(
-      icon: Icon(showInactivePersons ? Icons.tune : Icons.more_horiz),
+  Widget _buildMoreFilters(
+    BuildContext context,
+    WidgetRef ref, {
+    required PersonListOptions options,
+  }) {
+    return IconButton(
+      icon: options.activeOptionCount == 0
+          ? const Icon(Icons.tune)
+          : Badge(
+              label: Text('${options.activeOptionCount}'),
+              child: const Icon(Icons.filter_alt),
+            ),
       tooltip: 'More filters',
-      onSelected: (value) {
-        switch (value) {
-          case 'inactive':
-            ref
-                .read(showInactivePersonsProvider.notifier)
-                .set(!showInactivePersons);
+      onPressed: () async {
+        final updated = await showDialog<PersonListOptions>(
+          context: context,
+          builder: (_) => _PersonListOptionsDialog(initialOptions: options),
+        );
+        if (updated != null) {
+          ref.read(personListOptionsProvider.notifier).set(updated);
         }
       },
-      itemBuilder: (context) => [
-        PopupMenuItem(
-          value: 'inactive',
-          child: _MoreFilterMenuItem(
-            checked: showInactivePersons,
-            label: 'Show inactive publishers',
-          ),
-        ),
-      ],
     );
   }
 
@@ -262,6 +267,21 @@ class PersonListScreen extends ConsumerWidget {
     }
   }
 
+  Future<void> _previewPublisherContactList(
+    BuildContext context,
+    ReportService svc,
+  ) async {
+    final startInactiveOnNewPage = await PublisherContactListOptionsDialog.show(
+      context,
+    );
+    if (startInactiveOnNewPage == null || !context.mounted) return;
+
+    await svc.previewPublisherContactList(
+      context,
+      startInactiveOnNewPage: startInactiveOnNewPage,
+    );
+  }
+
   Future<void> _exportExcel(BuildContext context, ReportService svc) async {
     try {
       final bytes = await svc.buildPublisherContactListExcel();
@@ -291,85 +311,7 @@ class PersonListScreen extends ConsumerWidget {
   Future<void> _exportPublisherRecords(
     BuildContext context,
     ReportService svc,
-  ) async {
-    try {
-      final options = await ExportRecordsDialog.show(context);
-      if (options == null) return;
-
-      if (!context.mounted) return;
-      final dirPath = await FilePicker.getDirectoryPath(
-        dialogTitle: 'Select S-21 Export Directory',
-      );
-      if (dirPath == null) return;
-      if (!context.mounted) return;
-
-      final errors = await _runWithProgress<List<String>>(
-        context,
-        title: 'Exporting S-21 Records',
-        initialProgress: const ExportProgress(
-          current: 0,
-          total: 0,
-          message: 'Preparing publisher records',
-        ),
-        task: (onProgress) => svc.exportPublisherRecords(
-          dirPath: dirPath,
-          serviceYear: options.serviceYear,
-          flatten: options.flattenPdf,
-          groupByRole: options.groupByRole,
-          groupByFieldServiceGroup: options.groupByFieldServiceGroup,
-          twoYearsPerPage: options.twoYearsPerPage,
-          onlyUpToPreviousMonth: options.onlyUpToPreviousMonth,
-          fileNameTemplate: options.fileNameTemplate,
-          onProgress: onProgress,
-        ),
-      );
-
-      if (context.mounted) {
-        if (errors.isEmpty) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Publisher records exported to $dirPath')),
-          );
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Export completed with ${errors.length} error(s).'),
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Export failed: $e')));
-      }
-    }
-  }
-
-  Future<T> _runWithProgress<T>(
-    BuildContext context, {
-    required String title,
-    required ExportProgress initialProgress,
-    required Future<T> Function(ExportProgressCallback onProgress) task,
-  }) async {
-    final notifier = ValueNotifier(initialProgress);
-
-    showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) =>
-          ExportProgressDialog(title: title, progressListenable: notifier),
-    );
-
-    try {
-      return await task((progress) => notifier.value = progress);
-    } finally {
-      if (context.mounted) {
-        Navigator.of(context, rootNavigator: true).pop();
-      }
-      notifier.dispose();
-    }
-  }
+  ) => _exportPublisherRecordsFor(context, svc);
 
   Future<void> _importCsv(BuildContext context) async {
     try {
@@ -448,7 +390,7 @@ class PersonListScreen extends ConsumerWidget {
 class _PersonDataTable extends ConsumerStatefulWidget {
   final List<Person> persons;
 
-  const _PersonDataTable({required this.persons});
+  const _PersonDataTable({super.key, required this.persons});
 
   @override
   ConsumerState<_PersonDataTable> createState() => _PersonDataTableState();
@@ -478,12 +420,18 @@ class _PersonDataTableState extends ConsumerState<_PersonDataTable> {
           case 2:
             result = a.otherNames.compareTo(b.otherNames);
           case 3:
+            return _compareDates(
+              a.baptismDate,
+              b.baptismDate,
+              ascending: _sortAscending,
+            );
+          case 4:
             result = a.congregationRole.index.compareTo(
               b.congregationRole.index,
             );
-          case 4:
-            result = a.pioneerType.index.compareTo(b.pioneerType.index);
           case 5:
+            result = a.pioneerType.index.compareTo(b.pioneerType.index);
+          case 6:
             result = (a.isActive ? 1 : 0).compareTo(b.isActive ? 1 : 0);
           default:
             result = 0;
@@ -492,7 +440,10 @@ class _PersonDataTableState extends ConsumerState<_PersonDataTable> {
       });
     }
 
-    final isWide = MediaQuery.of(context).size.width >= 600;
+    final width = MediaQuery.of(context).size.width;
+    final isWide = width >= 600;
+    // Three inline buttons need more room than the table breakpoint allows.
+    final showInlineActions = width >= 760;
 
     return Column(
       children: [
@@ -503,7 +454,13 @@ class _PersonDataTableState extends ConsumerState<_PersonDataTable> {
               children: [
                 Text('${_selectedIds.length} selected'),
                 const Spacer(),
-                if (isWide) ...[
+                if (showInlineActions) ...[
+                  FilledButton.tonalIcon(
+                    icon: const Icon(Icons.description),
+                    label: const Text('Export Records'),
+                    onPressed: () => _exportSelected(context),
+                  ),
+                  const SizedBox(width: 8),
                   FilledButton.tonalIcon(
                     icon: const Icon(Icons.inventory_2_outlined),
                     label: const Text('Archive'),
@@ -520,6 +477,8 @@ class _PersonDataTableState extends ConsumerState<_PersonDataTable> {
                     tooltip: 'Selected publisher actions',
                     onSelected: (action) {
                       switch (action) {
+                        case _SelectedPublisherAction.exportRecords:
+                          _exportSelected(context);
                         case _SelectedPublisherAction.archive:
                           _archiveSelected(context);
                         case _SelectedPublisherAction.moveToTrash:
@@ -527,6 +486,11 @@ class _PersonDataTableState extends ConsumerState<_PersonDataTable> {
                       }
                     },
                     itemBuilder: (_) => [
+                      AppPopupMenuItem(
+                        value: _SelectedPublisherAction.exportRecords,
+                        icon: Icons.description,
+                        label: 'Export Records (S-21)',
+                      ),
                       AppPopupMenuItem(
                         value: _SelectedPublisherAction.archive,
                         icon: Icons.inventory_2_outlined,
@@ -603,14 +567,31 @@ class _PersonDataTableState extends ConsumerState<_PersonDataTable> {
   }
 
   Widget _buildDataTable(List<Person> sorted) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final checkboxTheme = CheckboxThemeData(
+      fillColor: WidgetStateProperty.resolveWith((states) {
+        if (states.contains(WidgetState.disabled)) {
+          return colors.onSurface.withAlpha(30);
+        }
+        return states.contains(WidgetState.selected)
+            ? colors.primary
+            : colors.surfaceContainerHighest;
+      }),
+      checkColor: WidgetStatePropertyAll(colors.onPrimary),
+      side: BorderSide(color: colors.outline, width: 1.5),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+    );
     return StickyDataTable(
-      minWidth: 900,
+      minWidth: 1050,
       sortColumnIndex: _sortColumnIndex,
       sortAscending: _sortAscending,
       showCheckboxColumn: true,
       columnSpacing: 12,
       horizontalMargin: 12,
       checkboxHorizontalMargin: 8,
+      headingCheckboxTheme: checkboxTheme,
+      dataRowCheckboxTheme: checkboxTheme,
       columns: [
         DataColumn2(
           label: Text(
@@ -636,6 +617,11 @@ class _PersonDataTableState extends ConsumerState<_PersonDataTable> {
           label: const Text('Other Name'),
           size: ColumnSize.M,
           minWidth: 150,
+          onSort: _onSort,
+        ),
+        DataColumn2(
+          label: const Text('Baptism Date'),
+          fixedWidth: 130,
           onSort: _onSort,
         ),
         DataColumn2(
@@ -695,6 +681,10 @@ class _PersonDataTableState extends ConsumerState<_PersonDataTable> {
               ),
               onTap: () => context.push('/persons/edit/${person.id}'),
             ),
+            DataCell(
+              Text(_formatDate(person.baptismDate)),
+              onTap: () => context.push('/persons/edit/${person.id}'),
+            ),
             DataCell(Center(child: _roleBadge(person.congregationRole))),
             DataCell(Center(child: _pioneerBadge(person.pioneerType))),
             DataCell(
@@ -714,7 +704,10 @@ class _PersonDataTableState extends ConsumerState<_PersonDataTable> {
 
   Widget? _buildCardSubtitle(Person person, List<Widget> badges) {
     final otherNames = person.otherNames.trim();
-    if (otherNames.isEmpty && badges.isEmpty) return null;
+    final baptismDate = person.baptismDate;
+    if (otherNames.isEmpty && baptismDate == null && badges.isEmpty) {
+      return null;
+    }
 
     return Padding(
       padding: const EdgeInsets.only(top: 4),
@@ -731,14 +724,38 @@ class _PersonDataTableState extends ConsumerState<_PersonDataTable> {
                 color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
             ),
+          if (baptismDate != null)
+            Padding(
+              padding: EdgeInsets.only(top: otherNames.isEmpty ? 0 : 2),
+              child: Text(
+                'Baptized: ${_formatDate(baptismDate)}',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
           if (badges.isNotEmpty)
             Padding(
-              padding: EdgeInsets.only(top: otherNames.isEmpty ? 2 : 6),
+              padding: EdgeInsets.only(
+                top: otherNames.isEmpty && baptismDate == null ? 2 : 6,
+              ),
               child: Wrap(spacing: 6, runSpacing: 6, children: badges),
             ),
         ],
       ),
     );
+  }
+
+  int _compareDates(DateTime? a, DateTime? b, {required bool ascending}) {
+    if (a == null && b == null) return 0;
+    if (a == null) return 1;
+    if (b == null) return -1;
+    return ascending ? a.compareTo(b) : b.compareTo(a);
+  }
+
+  String _formatDate(DateTime? date) {
+    if (date == null) return '—';
+    return DateFormat.yMMMd().format(date);
   }
 
   List<Widget> _publisherBadges(Person person) => [
@@ -804,6 +821,18 @@ class _PersonDataTableState extends ConsumerState<_PersonDataTable> {
       _sortColumnIndex = columnIndex;
       _sortAscending = ascending;
     });
+  }
+
+  Future<void> _exportSelected(BuildContext context) async {
+    final svc = ReportService(
+      ref.read(databaseProvider),
+      congregationId: ref.read(currentCongregationIdProvider),
+    );
+    await _exportPublisherRecordsFor(
+      context,
+      svc,
+      personIds: Set<int>.from(_selectedIds),
+    );
   }
 
   Future<void> _archiveSelected(BuildContext context) async {
@@ -962,7 +991,100 @@ class _PersonDataTableState extends ConsumerState<_PersonDataTable> {
   }
 }
 
-enum _SelectedPublisherAction { archive, moveToTrash }
+/// Runs the S-21 export flow: options, output directory, progress, result.
+///
+/// Passing [personIds] limits the export to those publishers instead of
+/// exporting the whole congregation.
+Future<void> _exportPublisherRecordsFor(
+  BuildContext context,
+  ReportService svc, {
+  Set<int>? personIds,
+}) async {
+  try {
+    final options = await ExportRecordsDialog.show(
+      context,
+      selectionCount: personIds?.length,
+    );
+    if (options == null) return;
+
+    if (!context.mounted) return;
+    final dirPath = await FilePicker.getDirectoryPath(
+      dialogTitle: 'Select S-21 Export Directory',
+    );
+    if (dirPath == null) return;
+    if (!context.mounted) return;
+
+    final errors = await _runWithProgress<List<String>>(
+      context,
+      title: 'Exporting S-21 Records',
+      initialProgress: const ExportProgress(
+        current: 0,
+        total: 0,
+        message: 'Preparing publisher records',
+      ),
+      task: (onProgress) => svc.exportPublisherRecords(
+        dirPath: dirPath,
+        serviceYear: options.serviceYear,
+        flatten: options.flattenPdf,
+        groupByRole: options.groupByRole,
+        groupByFieldServiceGroup: options.groupByFieldServiceGroup,
+        twoYearsPerPage: options.twoYearsPerPage,
+        onlyUpToPreviousMonth: options.onlyUpToPreviousMonth,
+        includeInactive: options.includeInactive,
+        personIds: personIds,
+        fileNameTemplate: options.fileNameTemplate,
+        onProgress: onProgress,
+      ),
+    );
+
+    if (context.mounted) {
+      if (errors.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Publisher records exported to $dirPath')),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Export completed with ${errors.length} error(s).'),
+          ),
+        );
+      }
+    }
+  } catch (e) {
+    if (context.mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Export failed: $e')));
+    }
+  }
+}
+
+Future<T> _runWithProgress<T>(
+  BuildContext context, {
+  required String title,
+  required ExportProgress initialProgress,
+  required Future<T> Function(ExportProgressCallback onProgress) task,
+}) async {
+  final notifier = ValueNotifier(initialProgress);
+
+  showDialog<void>(
+    context: context,
+    barrierDismissible: false,
+    builder: (_) =>
+        ExportProgressDialog(title: title, progressListenable: notifier),
+  );
+
+  try {
+    return await task((progress) => notifier.value = progress);
+  } finally {
+    if (context.mounted) {
+      Navigator.of(context, rootNavigator: true).pop();
+    }
+    notifier.dispose();
+  }
+}
+
+enum _SelectedPublisherAction { exportRecords, archive, moveToTrash }
 
 class _ArchiveRequest {
   const _ArchiveRequest({required this.reason, required this.archivedAt});
@@ -971,32 +1093,210 @@ class _ArchiveRequest {
   final DateTime archivedAt;
 }
 
-class _MoreFilterMenuItem extends StatelessWidget {
-  final bool checked;
-  final String label;
+class _PersonListOptionsDialog extends StatefulWidget {
+  final PersonListOptions initialOptions;
 
-  const _MoreFilterMenuItem({required this.checked, required this.label});
+  const _PersonListOptionsDialog({required this.initialOptions});
+
+  @override
+  State<_PersonListOptionsDialog> createState() =>
+      _PersonListOptionsDialogState();
+}
+
+class _PersonListOptionsDialogState extends State<_PersonListOptionsDialog> {
+  late PersonListOptions _options;
+
+  @override
+  void initState() {
+    super.initState();
+    _options = widget.initialOptions;
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        SizedBox(
-          width: 40,
-          child: IgnorePointer(
-            child: Checkbox(
-              value: checked,
-              onChanged: (_) {},
-              visualDensity: VisualDensity.compact,
-            ),
+    return AlertDialog(
+      title: const Text('Filter and Sort Persons'),
+      contentPadding: const EdgeInsets.only(top: 8),
+      content: SizedBox(
+        key: const ValueKey('person-list-options-content'),
+        width: 520,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              SwitchListTile.adaptive(
+                key: const ValueKey('person-list-include-inactive'),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 24),
+                title: const Text('Include inactive persons'),
+                subtitle: const Text(
+                  'Turn off to show active congregation persons only.',
+                ),
+                value: _options.includeInactive,
+                onChanged: (value) => setState(
+                  () => _options = _options.copyWith(includeInactive: value),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const Divider(height: 24),
+                    Text(
+                      'Filters',
+                      style: Theme.of(context).textTheme.titleSmall,
+                    ),
+                    const SizedBox(height: 12),
+                    _dropdown<BaptismDateFilter>(
+                      label: 'Baptism Date',
+                      value: _options.baptismDateFilter,
+                      values: BaptismDateFilter.values,
+                      labelFor: _baptismDateLabel,
+                      onChanged: (value) => _options = _options.copyWith(
+                        baptismDateFilter: value,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    _dropdown<GroupAssignmentFilter>(
+                      label: 'Field Service Group',
+                      value: _options.groupAssignmentFilter,
+                      values: GroupAssignmentFilter.values,
+                      labelFor: _groupAssignmentLabel,
+                      onChanged: (value) => _options = _options.copyWith(
+                        groupAssignmentFilter: value,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    _dropdown<PioneerAssignmentFilter>(
+                      label: 'Pioneer Assignment',
+                      value: _options.pioneerAssignmentFilter,
+                      values: PioneerAssignmentFilter.values,
+                      labelFor: _pioneerAssignmentLabel,
+                      onChanged: (value) => _options = _options.copyWith(
+                        pioneerAssignmentFilter: value,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    _dropdown<CongregationRoleFilter>(
+                      label: 'Congregation Role',
+                      value: _options.congregationRoleFilter,
+                      values: CongregationRoleFilter.values,
+                      labelFor: _congregationRoleLabel,
+                      onChanged: (value) => _options = _options.copyWith(
+                        congregationRoleFilter: value,
+                      ),
+                    ),
+                    const Divider(height: 32),
+                    Text('Sort', style: Theme.of(context).textTheme.titleSmall),
+                    const SizedBox(height: 12),
+                    _dropdown<PersonSortField>(
+                      label: 'Sort By',
+                      value: _options.sortField,
+                      values: PersonSortField.values,
+                      labelFor: _sortFieldLabel,
+                      onChanged: (value) =>
+                          _options = _options.copyWith(sortField: value),
+                    ),
+                    const SizedBox(height: 12),
+                    _dropdown<bool>(
+                      label: 'Direction',
+                      value: _options.sortAscending,
+                      values: const [true, false],
+                      labelFor: (value) => value ? 'Ascending' : 'Descending',
+                      onChanged: (value) =>
+                          _options = _options.copyWith(sortAscending: value),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
         ),
-        const SizedBox(width: 8),
-        Flexible(child: Text(label)),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => setState(() => _options = const PersonListOptions()),
+          child: const Text('Reset'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(context).pop(_options),
+          child: const Text('Apply'),
+        ),
       ],
     );
   }
+
+  Widget _dropdown<T>({
+    required String label,
+    required T value,
+    required List<T> values,
+    required String Function(T) labelFor,
+    required ValueChanged<T> onChanged,
+  }) {
+    return DropdownButtonFormField<T>(
+      key: ValueKey('$label-$value'),
+      initialValue: value,
+      isExpanded: true,
+      decoration: InputDecoration(
+        labelText: label,
+        border: const OutlineInputBorder(),
+      ),
+      items: values
+          .map(
+            (item) =>
+                DropdownMenuItem<T>(value: item, child: Text(labelFor(item))),
+          )
+          .toList(),
+      onChanged: (selected) {
+        if (selected == null) return;
+        setState(() => onChanged(selected));
+      },
+    );
+  }
+
+  String _baptismDateLabel(BaptismDateFilter value) => switch (value) {
+    BaptismDateFilter.any => 'Any',
+    BaptismDateFilter.recorded => 'Date recorded',
+    BaptismDateFilter.missing => 'Date missing',
+  };
+
+  String _groupAssignmentLabel(GroupAssignmentFilter value) => switch (value) {
+    GroupAssignmentFilter.any => 'Any',
+    GroupAssignmentFilter.assigned => 'Assigned to a group',
+    GroupAssignmentFilter.unassigned => 'Not assigned to a group',
+  };
+
+  String _pioneerAssignmentLabel(PioneerAssignmentFilter value) =>
+      switch (value) {
+        PioneerAssignmentFilter.any => 'Any',
+        PioneerAssignmentFilter.pioneer => 'Any pioneer',
+        PioneerAssignmentFilter.publisher => 'Publisher (not a pioneer)',
+        PioneerAssignmentFilter.regularPioneer => 'Regular Pioneer',
+        PioneerAssignmentFilter.specialPioneer => 'Special Pioneer',
+        PioneerAssignmentFilter.fieldMissionary => 'Field Missionary',
+      };
+
+  String _congregationRoleLabel(CongregationRoleFilter value) =>
+      switch (value) {
+        CongregationRoleFilter.any => 'Any',
+        CongregationRoleFilter.noAppointment => 'No appointment',
+        CongregationRoleFilter.elder => 'Elder',
+        CongregationRoleFilter.ministerialServant => 'Ministerial Servant',
+      };
+
+  String _sortFieldLabel(PersonSortField value) => switch (value) {
+    PersonSortField.name => 'Name',
+    PersonSortField.baptismDate => 'Baptism Date',
+    PersonSortField.birthDate => 'Birth Date',
+    PersonSortField.congregationRole => 'Congregation Role',
+    PersonSortField.pioneerType => 'Pioneer Assignment',
+    PersonSortField.activeStatus => 'Active Status',
+  };
 }
 
 class _PublisherListFooter extends StatelessWidget {

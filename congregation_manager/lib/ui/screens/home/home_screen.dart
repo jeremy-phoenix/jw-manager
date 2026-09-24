@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:congregation_manager/data/enums.dart';
 import 'package:congregation_manager/providers/congregation_providers.dart';
 import 'package:congregation_manager/providers/person_providers.dart';
 import 'package:congregation_manager/providers/group_providers.dart';
@@ -14,48 +15,104 @@ class HomeScreen extends ConsumerWidget {
     final groups = ref.watch(fieldServiceGroupsProvider);
     final currentCong = ref.watch(currentCongregationProvider);
     final theme = Theme.of(context);
+    final colors = theme.colorScheme;
     final stats = [
       _DashboardStat(
-        icon: Icons.people,
-        label: 'Total Publishers',
+        icon: Icons.people_alt_outlined,
+        label: 'Congregation Persons',
+        description: 'All current person records',
         value: persons.when(
           data: (list) => list.length.toString(),
           loading: () => '...',
           error: (e, s) => '–',
         ),
-        color: Colors.blue,
+        color: colors.primary,
+        onTap: () => context.go('/persons'),
       ),
       _DashboardStat(
-        icon: Icons.check_circle,
-        label: 'Active',
+        icon: Icons.check_circle_outline,
+        label: 'Active Persons',
+        description: 'Currently active',
         value: persons.when(
           data: (list) => list.where((p) => p.isActive).length.toString(),
           loading: () => '...',
           error: (e, s) => '–',
         ),
-        color: Colors.green,
+        color: colors.tertiary,
+        onTap: () => context.go('/persons'),
       ),
       _DashboardStat(
-        icon: Icons.cancel,
-        label: 'Inactive',
+        icon: Icons.person_off_outlined,
+        label: 'Inactive Persons',
+        description: 'Included in current records',
         value: persons.when(
           data: (list) => list.where((p) => !p.isActive).length.toString(),
           loading: () => '...',
           error: (e, s) => '–',
         ),
-        color: Colors.orange,
+        color: colors.secondary,
+        onTap: () => context.go('/persons'),
       ),
       _DashboardStat(
-        icon: Icons.groups,
+        icon: Icons.explore_outlined,
+        label: 'Pioneers',
+        description: 'Active RP, SP, and FM',
+        value: persons.when(
+          data: (list) => list
+              .where((p) => p.isActive && p.pioneerType != PioneerType.none)
+              .length
+              .toString(),
+          loading: () => '...',
+          error: (e, s) => '–',
+        ),
+        color: colors.primary,
+        onTap: () {
+          ref
+              .read(personListOptionsProvider.notifier)
+              .set(
+                const PersonListOptions(
+                  includeInactive: false,
+                  pioneerAssignmentFilter: PioneerAssignmentFilter.pioneer,
+                ),
+              );
+          context.go('/persons');
+        },
+      ),
+      _DashboardStat(
+        icon: Icons.groups_outlined,
         label: 'Field Service Groups',
+        description: 'Current group arrangement',
         value: groups.when(
           data: (list) => list.length.toString(),
           loading: () => '...',
           error: (e, s) => '–',
         ),
-        color: Colors.purple,
+        color: colors.secondary,
+        onTap: () => context.go('/groups'),
+      ),
+      _DashboardStat(
+        icon: Icons.person_add_disabled_outlined,
+        label: 'Unassigned',
+        description: 'Active persons without a group',
+        value: persons.when(
+          data: (list) => list
+              .where((p) => p.isActive && p.fieldServiceGroupId == null)
+              .length
+              .toString(),
+          loading: () => '...',
+          error: (e, s) => '–',
+        ),
+        color: colors.error,
+        onTap: () => context.go('/groups'),
       ),
     ];
+
+    final missingBaptismDates = persons.when(
+      data: (list) =>
+          list.where((p) => p.isActive && p.baptismDate == null).length,
+      loading: () => null,
+      error: (e, s) => null,
+    );
 
     return Scaffold(
       appBar: AppBar(
@@ -78,8 +135,40 @@ class HomeScreen extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text('Dashboard', style: theme.textTheme.headlineMedium),
+                const SizedBox(height: 4),
+                Text(
+                  'A current overview of the congregation.',
+                  style: theme.textTheme.bodyLarge?.copyWith(
+                    color: colors.onSurfaceVariant,
+                  ),
+                ),
                 const SizedBox(height: 16),
                 _DashboardGrid(stats: stats),
+                const SizedBox(height: 28),
+                Text('Quick Actions', style: theme.textTheme.titleLarge),
+                const SizedBox(height: 12),
+                _QuickActions(
+                  onAddPerson: () => context.push('/persons/new'),
+                  onServiceReports: () => context.go('/reports'),
+                  onManageGroups: () => context.go('/groups'),
+                ),
+                const SizedBox(height: 28),
+                Text('Person Records', style: theme.textTheme.titleLarge),
+                const SizedBox(height: 12),
+                _BaptismDateOverviewCard(
+                  missingCount: missingBaptismDates,
+                  onTap: () {
+                    ref
+                        .read(personListOptionsProvider.notifier)
+                        .set(
+                          const PersonListOptions(
+                            includeInactive: false,
+                            baptismDateFilter: BaptismDateFilter.missing,
+                          ),
+                        );
+                    context.go('/persons');
+                  },
+                ),
               ],
             ),
           );
@@ -92,14 +181,18 @@ class HomeScreen extends ConsumerWidget {
 class _DashboardStat {
   final IconData icon;
   final String label;
+  final String description;
   final String value;
   final Color color;
+  final VoidCallback onTap;
 
   const _DashboardStat({
     required this.icon,
     required this.label,
+    required this.description,
     required this.value,
     required this.color,
+    required this.onTap,
   });
 }
 
@@ -113,11 +206,11 @@ class _DashboardGrid extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth;
-        final columns = width < 340
+        final columns = width < 360
             ? 1
-            : width < 720
+            : width < 900
             ? 2
-            : 4;
+            : 3;
 
         return GridView.builder(
           shrinkWrap: true,
@@ -125,7 +218,7 @@ class _DashboardGrid extends StatelessWidget {
           itemCount: stats.length,
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: columns,
-            mainAxisExtent: 116,
+            mainAxisExtent: 142,
             mainAxisSpacing: 12,
             crossAxisSpacing: 12,
           ),
@@ -143,50 +236,143 @@ class _StatCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
+    final theme = Theme.of(context);
+    final textTheme = theme.textTheme;
 
     return Card(
       margin: EdgeInsets.zero,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: stat.color.withAlpha(28),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(8),
-                    child: Icon(stat.icon, color: stat.color, size: 22),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    stat.value,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: textTheme.headlineSmall?.copyWith(
-                      color: stat.color,
-                      fontWeight: FontWeight.bold,
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: stat.onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: stat.color.withAlpha(28),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(8),
+                      child: Icon(stat.icon, color: stat.color, size: 22),
                     ),
                   ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      stat.value,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: textTheme.headlineSmall?.copyWith(
+                        color: stat.color,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  Icon(
+                    Icons.chevron_right,
+                    size: 20,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ],
+              ),
+              const Spacer(),
+              Text(
+                stat.label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: textTheme.titleSmall,
+              ),
+              const SizedBox(height: 2),
+              Text(
+                stat.description,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
                 ),
-              ],
-            ),
-            const Spacer(),
-            Text(
-              stat.label,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: textTheme.bodyMedium,
-            ),
-          ],
+              ),
+            ],
+          ),
         ),
+      ),
+    );
+  }
+}
+
+class _QuickActions extends StatelessWidget {
+  final VoidCallback onAddPerson;
+  final VoidCallback onServiceReports;
+  final VoidCallback onManageGroups;
+
+  const _QuickActions({
+    required this.onAddPerson,
+    required this.onServiceReports,
+    required this.onManageGroups,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: 10,
+      runSpacing: 10,
+      children: [
+        FilledButton.icon(
+          onPressed: onAddPerson,
+          icon: const Icon(Icons.person_add_outlined),
+          label: const Text('Add Person'),
+        ),
+        OutlinedButton.icon(
+          onPressed: onServiceReports,
+          icon: const Icon(Icons.assignment_outlined),
+          label: const Text('Service Reports'),
+        ),
+        OutlinedButton.icon(
+          onPressed: onManageGroups,
+          icon: const Icon(Icons.groups_outlined),
+          label: const Text('Manage Groups'),
+        ),
+      ],
+    );
+  }
+}
+
+class _BaptismDateOverviewCard extends StatelessWidget {
+  final int? missingCount;
+  final VoidCallback onTap;
+
+  const _BaptismDateOverviewCard({
+    required this.missingCount,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final description = switch (missingCount) {
+      null => 'Loading baptism date information…',
+      0 => 'Every active person has a baptism date recorded.',
+      1 => '1 active person has no baptism date recorded.',
+      final count => '$count active persons have no baptism date recorded.',
+    };
+
+    return Card(
+      margin: EdgeInsets.zero,
+      clipBehavior: Clip.antiAlias,
+      child: ListTile(
+        onTap: onTap,
+        leading: CircleAvatar(
+          backgroundColor: colors.primaryContainer,
+          foregroundColor: colors.onPrimaryContainer,
+          child: const Icon(Icons.water_drop_outlined),
+        ),
+        title: const Text('Baptism Date Overview'),
+        subtitle: Text(description),
+        trailing: const Icon(Icons.chevron_right),
       ),
     );
   }

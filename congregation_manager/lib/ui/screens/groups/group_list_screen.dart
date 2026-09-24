@@ -45,11 +45,6 @@ class GroupListScreen extends ConsumerWidget {
           Expanded(
             child: filteredGroups.when(
               data: (groups) {
-                if (groups.isEmpty) {
-                  return const Center(
-                    child: Text('No field service groups found.'),
-                  );
-                }
                 return personsByGroup.when(
                   data: (groupedPersons) {
                     final allPersons = [
@@ -58,15 +53,37 @@ class GroupListScreen extends ConsumerWidget {
                     final personsById = {
                       for (final person in allPersons) person.id: person,
                     };
+                    final unassigned = groupedPersons[null] ?? const <Person>[];
+                    final normalizedQuery = searchQuery.trim().toLowerCase();
+                    final showUnassigned =
+                        normalizedQuery.isEmpty ||
+                        'unassigned persons'.contains(normalizedQuery);
+
+                    if (groups.isEmpty && !showUnassigned) {
+                      return const Center(
+                        child: Text('No field service groups found.'),
+                      );
+                    }
 
                     return ListView.builder(
                       padding: const EdgeInsets.symmetric(horizontal: 8),
-                      itemCount: groups.length,
+                      itemCount: groups.length + (showUnassigned ? 1 : 0),
                       itemBuilder: (context, index) {
-                        final group = groups[index];
+                        if (showUnassigned && index == 0) {
+                          return _UnassignedPersonsCard(
+                            count: unassigned.length,
+                            onView: () => _showUnassignedPersons(
+                              context,
+                              unassigned,
+                              nameOrder,
+                            ),
+                          );
+                        }
+                        final groupIndex = index - (showUnassigned ? 1 : 0);
+                        final group = groups[groupIndex];
                         final members = groupedPersons[group.id] ?? const [];
                         return _GroupListCard(
-                          index: index,
+                          index: groupIndex,
                           group: group,
                           members: members,
                           personsById: personsById,
@@ -89,6 +106,70 @@ class GroupListScreen extends ConsumerWidget {
               loading: () => const Center(child: CircularProgressIndicator()),
               error: (e, _) => Center(child: Text('Error: $e')),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showUnassignedPersons(
+    BuildContext context,
+    List<Person> persons,
+    NameOrder nameOrder,
+  ) async {
+    final sorted = List<Person>.from(persons)
+      ..sort(
+        (a, b) => formatPersonName(
+          a.firstName,
+          a.lastName,
+          nameOrder,
+        ).compareTo(formatPersonName(b.firstName, b.lastName, nameOrder)),
+      );
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text('Unassigned Persons (${sorted.length})'),
+        content: SizedBox(
+          width: 440,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 440),
+            child: sorted.isEmpty
+                ? const Text('Everyone is assigned to a field service group.')
+                : ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: sorted.length,
+                    separatorBuilder: (_, _) => const Divider(height: 1),
+                    itemBuilder: (_, index) {
+                      final person = sorted[index];
+                      return ListTile(
+                        leading: Icon(
+                          person.isActive ? Icons.person : Icons.person_off,
+                        ),
+                        title: Text(
+                          formatPersonName(
+                            person.firstName,
+                            person.lastName,
+                            nameOrder,
+                          ),
+                        ),
+                        subtitle: person.isActive
+                            ? null
+                            : const Text('Inactive'),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: () {
+                          Navigator.of(dialogContext).pop();
+                          context.push('/persons/edit/${person.id}');
+                        },
+                      );
+                    },
+                  ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Close'),
           ),
         ],
       ),
@@ -159,6 +240,41 @@ class GroupListScreen extends ConsumerWidget {
         }
       }
     }
+  }
+}
+
+class _UnassignedPersonsCard extends StatelessWidget {
+  final int count;
+  final VoidCallback onView;
+
+  const _UnassignedPersonsCard({required this.count, required this.onView});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Card(
+      margin: const EdgeInsets.symmetric(vertical: 4),
+      color: count > 0 ? colors.tertiaryContainer : null,
+      child: ListTile(
+        leading: CircleAvatar(
+          backgroundColor: count > 0
+              ? colors.tertiary
+              : colors.surfaceContainerHighest,
+          foregroundColor: count > 0
+              ? colors.onTertiary
+              : colors.onSurfaceVariant,
+          child: const Icon(Icons.person_off_outlined),
+        ),
+        title: const Text('Unassigned Persons'),
+        subtitle: Text(
+          count == 0
+              ? 'Everyone is assigned to a field service group.'
+              : '$count ${count == 1 ? 'person is' : 'persons are'} not assigned.',
+        ),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: onView,
+      ),
+    );
   }
 }
 

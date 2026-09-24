@@ -12,6 +12,8 @@ class StickyDataTable extends StatelessWidget {
   final double? columnSpacing;
   final double? horizontalMargin;
   final double? checkboxHorizontalMargin;
+  final CheckboxThemeData? headingCheckboxTheme;
+  final CheckboxThemeData? dataRowCheckboxTheme;
   final double minWidth;
 
   const StickyDataTable({
@@ -24,6 +26,8 @@ class StickyDataTable extends StatelessWidget {
     this.columnSpacing,
     this.horizontalMargin,
     this.checkboxHorizontalMargin,
+    this.headingCheckboxTheme,
+    this.dataRowCheckboxTheme,
     this.minWidth = 600,
   });
 
@@ -44,6 +48,8 @@ class StickyDataTable extends StatelessWidget {
           columnSpacing: columnSpacing,
           horizontalMargin: horizontalMargin,
           checkboxHorizontalMargin: checkboxHorizontalMargin,
+          headingCheckboxTheme: headingCheckboxTheme,
+          datarowCheckboxTheme: dataRowCheckboxTheme,
           columns: columns,
           rows: rows,
         );
