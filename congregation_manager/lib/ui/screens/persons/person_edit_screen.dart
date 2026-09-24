@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:congregation_manager/data/database.dart';
 import 'package:congregation_manager/data/enums.dart';
+import 'package:congregation_manager/data/service_year.dart';
 import 'package:congregation_manager/providers/congregation_providers.dart';
 import 'package:congregation_manager/providers/database_provider.dart';
 import 'package:congregation_manager/providers/person_providers.dart';
@@ -756,10 +757,29 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen>
         (r) => r.year == year && r.month == month,
       );
       if (exists) continue;
-      _serviceReports.add(_ServiceReportEntry(year: year, month: month));
+      final isAuxiliaryPioneer =
+          _pioneerType == PioneerType.none &&
+          _auxPioneerPeriods.any(
+            (period) => _auxPeriodIncludes(period, year, month),
+          );
+      _serviceReports.add(
+        _ServiceReportEntry(
+          year: year,
+          month: month,
+          isAuxiliaryPioneer: isAuxiliaryPioneer,
+        ),
+      );
       added++;
     }
     if (added > 0) setState(() {});
+  }
+
+  static bool _auxPeriodIncludes(_AuxPioneerEntry period, int year, int month) {
+    final target = year * 12 + month;
+    final start = period.startYear * 12 + period.startMonth;
+    if (target < start) return false;
+    if (period.endYear == null || period.endMonth == null) return true;
+    return target <= period.endYear! * 12 + period.endMonth!;
   }
 
   void _deleteServiceYear() {
@@ -793,12 +813,12 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen>
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               SizedBox(
-                width: 130,
+                width: 170,
                 child: DropdownButtonFormField<int?>(
                   isExpanded: true,
                   initialValue: _filterYear,
                   decoration: const InputDecoration(
-                    labelText: 'Filter Year',
+                    labelText: 'Filter Service Year',
                     border: OutlineInputBorder(),
                     isDense: true,
                   ),
@@ -818,11 +838,11 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen>
               ),
               const SizedBox(width: 16),
               SizedBox(
-                width: 100,
+                width: 120,
                 child: TextFormField(
                   controller: _newYearController,
                   decoration: const InputDecoration(
-                    labelText: 'Year',
+                    labelText: 'Service Year',
                     border: OutlineInputBorder(),
                     isDense: true,
                   ),
@@ -835,12 +855,12 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen>
               ),
               FilledButton.tonalIcon(
                 icon: const Icon(Icons.add),
-                label: const Text('Add Year'),
+                label: const Text('Add Service Year'),
                 onPressed: _addServiceYear,
               ),
               FilledButton.tonalIcon(
                 icon: const Icon(Icons.delete),
-                label: const Text('Delete Year'),
+                label: const Text('Delete Service Year'),
                 onPressed: _filterYear != null ? _deleteServiceYear : null,
               ),
             ],
@@ -875,7 +895,7 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '${_monthName(r.month)} ${r.year}',
+                  formatServiceMonth(r.year, r.month),
                   style: Theme.of(context).textTheme.titleSmall,
                 ),
                 const SizedBox(height: 8),
@@ -953,8 +973,8 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen>
       horizontalMargin: 12,
       columns: const [
         DataColumn2(
-          label: Text('Year'),
-          fixedWidth: 72,
+          label: Text('Service Year'),
+          fixedWidth: 112,
           headingRowAlignment: MainAxisAlignment.center,
         ),
         DataColumn2(label: Text('Month'), fixedWidth: 112),

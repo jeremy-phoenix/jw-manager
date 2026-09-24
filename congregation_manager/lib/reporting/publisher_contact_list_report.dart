@@ -4,13 +4,13 @@ import 'package:congregation_manager/data/database.dart';
 import 'package:congregation_manager/reporting/pdf_styles.dart';
 
 /// Publisher Contact List Report — landscape PDF.
-/// Columns: #, Name of Publisher, Address, Phone Number(s), Email,
-/// Field Service Group
+/// Columns: #, Name of Publisher, Address, Phone Number(s), Field Service Group
 pw.Document generatePublisherContactListReport({
   required List<Person> persons,
   required Map<int, List<PhoneNumber>> phonesByPerson,
   required Map<int, FieldServiceGroup> groupsById,
   Congregation? congregation,
+  bool startInactiveOnNewPage = false,
 }) {
   final active = persons.where((p) => p.isActive).toList()
     ..sort(
@@ -50,7 +50,10 @@ pw.Document generatePublisherContactListReport({
           groupsById,
         ),
         if (inactive.isNotEmpty) ...[
-          pw.SizedBox(height: 20),
+          if (startInactiveOnNewPage && active.isNotEmpty)
+            pw.NewPage()
+          else
+            pw.SizedBox(height: 20),
           ..._contactSection(
             'Inactive Publishers',
             inactive,
@@ -82,12 +85,11 @@ List<pw.Widget> _contactSection(
       cellDecoration: (index, data, rowNum) => PdfStyles.rowBorder,
       cellPadding: const pw.EdgeInsets.all(4),
       columnWidths: {
-        0: const pw.FixedColumnWidth(22),
+        0: const pw.FixedColumnWidth(28),
         1: const pw.FlexColumnWidth(2.2),
         2: const pw.FlexColumnWidth(3),
         3: const pw.FlexColumnWidth(2),
-        4: const pw.FlexColumnWidth(2.4),
-        5: const pw.FlexColumnWidth(1.6),
+        4: const pw.FlexColumnWidth(1.6),
       },
       cellAlignments: {
         0: pw.Alignment.center,
@@ -95,31 +97,28 @@ List<pw.Widget> _contactSection(
         2: pw.Alignment.centerLeft,
         3: pw.Alignment.centerLeft,
         4: pw.Alignment.centerLeft,
-        5: pw.Alignment.centerLeft,
       },
       headers: [
         '#',
         'Name of Publisher',
         'Address',
         'Phone Number(s)',
-        'Email',
         'Field Service Group',
       ],
       data: List.generate(persons.length, (i) {
         final p = persons[i];
         final phones = phonesByPerson[p.id] ?? [];
         final phoneStr = phones.isEmpty
-            ? '—'
+            ? ''
             : phones.map((ph) => ph.number).join(', ');
         final group = p.fieldServiceGroupId != null
-            ? groupsById[p.fieldServiceGroupId]?.name ?? '—'
-            : '—';
+            ? groupsById[p.fieldServiceGroupId]?.name ?? ''
+            : '';
         return [
           '${i + 1}',
           formatPersonName(p.firstName, p.lastName),
-          p.address.isEmpty ? '—' : p.address,
+          p.address.isEmpty ? '' : p.address,
           phoneStr,
-          p.email.isEmpty ? '—' : p.email,
           group,
         ];
       }),

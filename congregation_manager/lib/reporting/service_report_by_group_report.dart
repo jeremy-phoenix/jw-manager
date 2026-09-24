@@ -1,13 +1,13 @@
 import 'dart:typed_data';
 
 import 'package:excel/excel.dart';
-import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:congregation_manager/data/database.dart';
 import 'package:congregation_manager/reporting/excel_report_header.dart';
 import 'package:congregation_manager/reporting/pdf_styles.dart';
 import 'package:congregation_manager/reporting/service_report_group_data.dart';
+import 'package:congregation_manager/data/service_year.dart';
 
 /// Field Service Reports by Group — portrait PDF.
 ///
@@ -22,8 +22,7 @@ pw.Document generateServiceReportByGroupReport({
   required int month,
   Congregation? congregation,
 }) {
-  final monthName = DateFormat.MMMM().format(DateTime(year, month));
-  final subtitle = '$monthName $year';
+  final subtitle = formatServiceMonth(year, month);
 
   final buckets = buildServiceGroupBuckets(
     persons: persons,
@@ -45,7 +44,7 @@ pw.Document generateServiceReportByGroupReport({
       maxPages: PdfStyles.maxPages,
       header: (context) => PdfStyles.reportTitleBlock(
         title: 'Field Service Reports',
-        subtitle: '$subtitle — Grouped by Field Service Group',
+        subtitle: '$subtitle - Grouped by Field Service Group',
         congregation: congregation,
       ),
       footer: (context) => PdfStyles.pageFooter(context),
@@ -121,9 +120,9 @@ List<pw.Widget> _groupSection(ServiceGroupBucket bucket) {
         return [
           '${i + 1}',
           line.name,
-          line.sharedInMinistry ? 'Y' : '—',
-          line.isAuxiliaryPioneer ? 'Y' : '—',
-          line.bibleStudies > 0 ? '${line.bibleStudies}' : '—',
+          line.sharedInMinistry ? 'Y' : '',
+          line.isAuxiliaryPioneer ? 'Y' : '',
+          line.bibleStudies > 0 ? '${line.bibleStudies}' : '',
           formatHours(line.hours),
         ];
       }),
@@ -134,7 +133,7 @@ List<pw.Widget> _groupSection(ServiceGroupBucket bucket) {
         mainAxisAlignment: pw.MainAxisAlignment.end,
         children: [
           pw.Text(
-            'Subtotal — Studies: ${bucket.totalBibleStudies}    '
+            'Subtotal - Studies: ${bucket.totalBibleStudies}    '
             'Hours: ${formatHours(bucket.totalHours)}',
             style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold),
           ),
@@ -193,8 +192,7 @@ Uint8List buildServiceReportByGroupExcel({
   required int month,
   Congregation? congregation,
 }) {
-  final monthName = DateFormat.MMMM().format(DateTime(year, month));
-  final subtitle = '$monthName $year';
+  final subtitle = formatServiceMonth(year, month);
 
   final buckets = buildServiceGroupBuckets(
     persons: persons,
@@ -227,7 +225,7 @@ Uint8List buildServiceReportByGroupExcel({
 
   var row = writeExcelReportHeader(
     sheet,
-    title: 'Field Service Reports — $subtitle',
+    title: 'Field Service Reports - $subtitle',
     columnSpan: headers.length,
     congregation: congregation,
   );

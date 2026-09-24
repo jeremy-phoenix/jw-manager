@@ -78,7 +78,7 @@ pw.Document generateEmergencyContactListReport({
             final p = sorted[i];
             final phones = phonesByPerson[p.id] ?? [];
             final phoneStr = phones.isEmpty
-                ? '—'
+                ? ''
                 : phones.map((ph) => ph.number).join(', ');
 
             final ecs = emergencyContactsByPerson[p.id] ?? [];
@@ -88,12 +88,12 @@ pw.Document generateEmergencyContactListReport({
               '${i + 1}',
               formatPersonName(p.firstName, p.lastName),
               phoneStr,
-              p.email.isEmpty ? '—' : p.email,
-              primary?.name ?? '—',
-              primary?.phoneNumber ?? '—',
+              p.email.isEmpty ? '' : p.email,
+              primary?.name ?? '',
+              primary?.phoneNumber ?? '',
               primary != null
                   ? Relationship.values[primary.relationship.index].displayName
-                  : '—',
+                  : '',
             ];
           }),
         ),

@@ -97,6 +97,64 @@ void main() {
       document.dispose();
     }
   });
+
+  test('places inactive publishers in a separate Inactive folder', () async {
+    final tempDir = await Directory.systemTemp.createTemp('s21_inactive_test_');
+    addTearDown(() async {
+      if (await tempDir.exists()) {
+        await tempDir.delete(recursive: true);
+      }
+    });
+
+    final active = _person(id: 1, lastName: 'Active', isActive: true);
+    final inactive = _person(id: 2, lastName: 'Inactive', isActive: false);
+
+    final errors = await PublisherRecordWriter.exportAllPersonRecords(
+      persons: [active, inactive],
+      reportsByPerson: const {},
+      serviceYear: 2026,
+      outputDir: tempDir.path,
+      groupByRole: true,
+    );
+
+    expect(errors, isEmpty);
+    expect(
+      File('${tempDir.path}/Publishers/Active, John.pdf').existsSync(),
+      isTrue,
+    );
+    expect(
+      File(
+        '${tempDir.path}/Inactive/Publishers/Inactive, John.pdf',
+      ).existsSync(),
+      isTrue,
+    );
+  });
+}
+
+Person _person({
+  required int id,
+  required String lastName,
+  required bool isActive,
+}) {
+  final now = DateTime(2026, 6, 11);
+  return Person(
+    id: id,
+    firstName: 'John',
+    lastName: lastName,
+    otherNames: '',
+    gender: Gender.male,
+    hopeClass: HopeClass.otherSheep,
+    congregationRole: CongregationRole.none,
+    pioneerType: PioneerType.none,
+    address: '',
+    email: '',
+    isActive: isActive,
+    recordStatus: PersonRecordStatus.current,
+    congregationId: 1,
+    serverVersion: 0,
+    createdAt: now,
+    updatedAt: now,
+  );
 }
 
 sf.PdfTextBoxField _textField(sf.PdfForm form, String name) {

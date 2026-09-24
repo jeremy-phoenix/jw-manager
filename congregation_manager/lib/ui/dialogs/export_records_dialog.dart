@@ -9,6 +9,7 @@ class ExportRecordsOptions {
   final bool flattenPdf;
   final bool twoYearsPerPage;
   final bool onlyUpToPreviousMonth;
+  final bool includeInactive;
   final String fileNameTemplate;
 
   const ExportRecordsOptions({
@@ -18,19 +19,26 @@ class ExportRecordsOptions {
     required this.flattenPdf,
     required this.twoYearsPerPage,
     required this.onlyUpToPreviousMonth,
+    required this.includeInactive,
     required this.fileNameTemplate,
   });
 }
 
 /// Dialog that lets the user configure options before exporting S-21 records.
 class ExportRecordsDialog extends StatefulWidget {
-  const ExportRecordsDialog({super.key});
+  const ExportRecordsDialog({super.key, this.selectionCount});
+
+  /// Number of publishers picked in the list, or null when exporting everyone.
+  final int? selectionCount;
 
   /// Show the dialog and return the selected options, or null if cancelled.
-  static Future<ExportRecordsOptions?> show(BuildContext context) {
+  static Future<ExportRecordsOptions?> show(
+    BuildContext context, {
+    int? selectionCount,
+  }) {
     return showDialog<ExportRecordsOptions>(
       context: context,
-      builder: (_) => const ExportRecordsDialog(),
+      builder: (_) => ExportRecordsDialog(selectionCount: selectionCount),
     );
   }
 
@@ -48,6 +56,7 @@ class _ExportRecordsDialogState extends State<ExportRecordsDialog> {
   bool _flattenPdf = false;
   bool _twoYearsPerPage = false;
   bool _onlyUpToPreviousMonth = true;
+  bool _includeInactive = false;
   late final TextEditingController _templateController;
 
   @override
@@ -69,6 +78,7 @@ class _ExportRecordsDialogState extends State<ExportRecordsDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final selectionCount = widget.selectionCount;
     return AlertDialog(
       scrollable: true,
       title: const Text('Export Publisher Records'),
@@ -78,6 +88,14 @@ class _ExportRecordsDialogState extends State<ExportRecordsDialog> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            if (selectionCount != null) ...[
+              Text(
+                'Exporting $selectionCount selected publisher(s).',
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+              const SizedBox(height: 16),
+            ],
+
             // Service year dropdown
             DropdownButtonFormField<int>(
               decoration: const InputDecoration(
@@ -87,8 +105,7 @@ class _ExportRecordsDialogState extends State<ExportRecordsDialog> {
               initialValue: _selectedYear,
               items: _serviceYears
                   .map(
-                    (y) =>
-                        DropdownMenuItem(value: y, child: Text('${y - 1}–$y')),
+                    (y) => DropdownMenuItem(value: y, child: Text('$y')),
                   )
                   .toList(),
               onChanged: (v) => setState(() => _selectedYear = v),
@@ -153,6 +170,18 @@ class _ExportRecordsDialogState extends State<ExportRecordsDialog> {
               dense: true,
               contentPadding: EdgeInsets.zero,
             ),
+            // A selection already names who to export, active or not.
+            if (selectionCount == null)
+              CheckboxListTile(
+                title: const Text('Include inactive publishers'),
+                subtitle: const Text(
+                  'Exports their records into a separate Inactive folder',
+                ),
+                value: _includeInactive,
+                onChanged: (v) => setState(() => _includeInactive = v ?? false),
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+              ),
             const SizedBox(height: 12),
 
             // Record name template
@@ -187,6 +216,7 @@ class _ExportRecordsDialogState extends State<ExportRecordsDialog> {
                       flattenPdf: _flattenPdf,
                       twoYearsPerPage: _twoYearsPerPage,
                       onlyUpToPreviousMonth: _onlyUpToPreviousMonth,
+                      includeInactive: _includeInactive,
                       fileNameTemplate: template,
                     ),
                   );

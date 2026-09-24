@@ -1,13 +1,13 @@
 import 'dart:typed_data';
 
 import 'package:excel/excel.dart';
-import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:congregation_manager/data/database.dart';
 import 'package:congregation_manager/reporting/excel_report_header.dart';
 import 'package:congregation_manager/reporting/pdf_styles.dart';
 import 'package:congregation_manager/reporting/service_report_group_data.dart';
+import 'package:congregation_manager/data/service_year.dart';
 
 /// Per-group list of active publishers with no submitted report for the period.
 List<ServiceGroupBucket> _missingBuckets({
@@ -41,8 +41,7 @@ pw.Document generateMissingReportsByGroupReport({
   required int month,
   Congregation? congregation,
 }) {
-  final monthName = DateFormat.MMMM().format(DateTime(year, month));
-  final subtitle = '$monthName $year';
+  final subtitle = formatServiceMonth(year, month);
 
   final buckets = _missingBuckets(
     persons: persons,
@@ -60,7 +59,7 @@ pw.Document generateMissingReportsByGroupReport({
       maxPages: PdfStyles.maxPages,
       header: (context) => PdfStyles.reportTitleBlock(
         title: 'Missing Reports',
-        subtitle: '$subtitle — Active publishers with no report submitted',
+        subtitle: '$subtitle - Active publishers with no report submitted',
         congregation: congregation,
       ),
       footer: (context) => pw.Row(
@@ -187,8 +186,7 @@ Uint8List buildMissingReportsByGroupExcel({
   required int month,
   Congregation? congregation,
 }) {
-  final monthName = DateFormat.MMMM().format(DateTime(year, month));
-  final subtitle = '$monthName $year';
+  final subtitle = formatServiceMonth(year, month);
 
   final buckets = _missingBuckets(
     persons: persons,
@@ -218,7 +216,7 @@ Uint8List buildMissingReportsByGroupExcel({
   const headers = ['Field Service Group', 'Publisher'];
   final headerRow = writeExcelReportHeader(
     sheet,
-    title: 'Missing Reports — $subtitle',
+    title: 'Missing Reports - $subtitle',
     columnSpan: headers.length,
     congregation: congregation,
   );

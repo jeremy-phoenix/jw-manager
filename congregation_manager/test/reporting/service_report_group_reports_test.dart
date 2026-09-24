@@ -79,6 +79,18 @@ FieldServiceGroup _group(int id, String name) {
 }
 
 void main() {
+  group('formatHours', () {
+    test('leaves non-positive values blank', () {
+      expect(formatHours(0), isEmpty);
+      expect(formatHours(-1), isEmpty);
+    });
+
+    test('formats positive values', () {
+      expect(formatHours(5), '5');
+      expect(formatHours(5.5), '5.5');
+    });
+  });
+
   group('buildServiceGroupBuckets', () {
     test(
       'groups active publishers, sorts Unassigned last, computes totals',
@@ -311,6 +323,39 @@ void main() {
       final aux = rows.firstWhere((r) => r.type == 'Auxiliary Pioneer');
       expect(aux.monthHours, 30);
       expect(aux.yearToDateHours, 30);
+    });
+
+    test('uses the current person pioneer type', () {
+      final persons = [
+        _person(
+          id: 1,
+          firstName: 'Former',
+          lastName: 'Pioneer',
+          pioneerType: PioneerType.none,
+        ),
+        _person(
+          id: 2,
+          firstName: 'Current',
+          lastName: 'Only',
+          pioneerType: PioneerType.regularPioneer,
+        ),
+      ];
+      final reports = [
+        _report(id: 1, personId: 1, year: 2026, month: 10, hours: 40),
+        _report(id: 2, personId: 2, year: 2026, month: 10, hours: 10),
+      ];
+
+      final rows = buildPioneerHoursRows(
+        persons: persons,
+        reports: reports,
+        groupsById: const {},
+        year: 2026,
+        month: 10,
+      );
+
+      expect(rows, hasLength(1));
+      expect(rows.single.name, 'Only, Current');
+      expect(rows.single.type, 'Regular Pioneer');
     });
   });
 

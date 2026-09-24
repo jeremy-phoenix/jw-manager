@@ -1,5 +1,4 @@
 import 'package:congregation_manager/data/database.dart';
-import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
@@ -9,6 +8,7 @@ class PdfStyles {
   static final headerBg = PdfColor.fromInt(0xFFE0E0E0); // grey lighten3
   static final borderColor = PdfColor.fromInt(0xFFEEEEEE); // grey lighten2
   static final footerColor = PdfColor.fromInt(0xFF757575); // grey darken1
+  static final calloutBg = PdfColor.fromInt(0xFFE8F1FB); // blue lighten5
   static const double fontSize = 9;
   static const double titleFontSize = 18;
   static const double sectionTitleFontSize = 12;
@@ -56,18 +56,17 @@ class PdfStyles {
         child: pw.Text(text, style: const pw.TextStyle(fontSize: fontSize)),
       );
 
-  /// Report title block: title, optional subtitle, congregation identity with
-  /// generated-on timestamp, and optionally the circuit overseer contact line.
+  /// Report title block: title, optional subtitle, congregation identity, and
+  /// optionally the circuit overseer contact callout.
   static pw.Widget reportTitleBlock({
     required String title,
     String? subtitle,
     Congregation? congregation,
     bool showCircuitOverseer = false,
-    DateTime? generatedAt,
   }) {
-    final identity = congregationIdentityLine(congregation, generatedAt);
+    final identity = congregationIdentityLine(congregation);
     final overseer = showCircuitOverseer
-        ? circuitOverseerSummary(congregation)
+        ? circuitOverseerBlock(congregation)
         : null;
     return pw.Column(
       crossAxisAlignment: pw.CrossAxisAlignment.start,
@@ -80,61 +79,144 @@ class PdfStyles {
             style: pw.TextStyle(fontSize: 12, color: footerColor),
           ),
         ],
-        pw.SizedBox(height: 2),
-        pw.Text(
-          identity,
-          style: pw.TextStyle(fontSize: 9, color: footerColor),
-        ),
-        if (overseer != null) ...[
+        if (identity != null) ...[
           pw.SizedBox(height: 2),
           pw.Text(
-            overseer,
+            identity,
             style: pw.TextStyle(fontSize: 9, color: footerColor),
           ),
         ],
+        if (overseer != null) ...[pw.SizedBox(height: 8), overseer],
         pw.SizedBox(height: 12),
       ],
     );
   }
 
-  /// "`name` Congregation (No. `number`) — Generated: yyyy-MM-dd HH:mm",
-  /// omitting blank segments; only the generated part when no congregation.
-  static String congregationIdentityLine(
-    Congregation? congregation,
-    DateTime? generatedAt,
-  ) {
-    final generated =
-        'Generated: '
-        '${DateFormat('yyyy-MM-dd HH:mm').format(generatedAt ?? DateTime.now())}';
+  /// "`name` Congregation (No. `number`)", omitting blank segments.
+  /// Returns null when no congregation identity is available.
+  static String? congregationIdentityLine(Congregation? congregation) {
     final name = congregation?.name.trim() ?? '';
     final number = congregation?.number.trim() ?? '';
-    if (name.isEmpty && number.isEmpty) return generated;
-    final identity = [
+    if (name.isEmpty && number.isEmpty) return null;
+    return [
       if (name.isNotEmpty) '$name Congregation',
       if (number.isNotEmpty) '(No. $number)',
     ].join(' ');
-    return '$identity — $generated';
   }
 
-  /// "Circuit Overseer: John Smith & Jane Smith · (555) 123-4567 · j@x.com".
-  /// Returns null when name, spouse, phone and email are all blank.
+  /// Circuit overseer contact callout: an accent-barred, tinted block naming
+  /// the overseer and listing every contact detail on file. Used instead of a
+  /// metadata line so the contact reads as a field of the report rather than a
+  /// footnote. Returns null when every overseer field is blank.
+  static pw.Widget? circuitOverseerBlock(Congregation? congregation) {
+    if (congregation == null) return null;
+    final namePart = _overseerName(congregation);
+    final fields = <List<String>>[
+      for (final field in [
+        ['Phone', congregation.circuitOverseerPhone],
+        ['Email', congregation.circuitOverseerEmail],
+        ['Address', congregation.circuitOverseerAddress],
+      ])
+        if (field[1].trim().isNotEmpty) [field[0], field[1].trim()],
+    ];
+    if (namePart.isEmpty && fields.isEmpty) return null;
+
+    return pw.Row(
+      children: [
+        pw.Expanded(
+          child: pw.Container(
+            padding: const pw.EdgeInsets.fromLTRB(10, 7, 10, 7),
+            decoration: pw.BoxDecoration(
+              color: calloutBg,
+              border: pw.Border(
+                left: pw.BorderSide(color: headerColor, width: 3),
+              ),
+            ),
+            child: pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Text(
+                  'CIRCUIT OVERSEER',
+                  style: pw.TextStyle(
+                    fontSize: 8,
+                    fontWeight: pw.FontWeight.bold,
+                    letterSpacing: 0.8,
+                    color: headerColor,
+                  ),
+                ),
+                if (namePart.isNotEmpty) ...[
+                  pw.SizedBox(height: 3),
+                  pw.Text(
+                    namePart,
+                    style: pw.TextStyle(
+                      fontSize: 11,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                  ),
+                ],
+                if (fields.isNotEmpty) ...[
+                  pw.SizedBox(height: 4),
+                  pw.Wrap(
+                    spacing: 20,
+                    runSpacing: 3,
+                    children: [
+                      for (final field in fields)
+                        pw.Row(
+                          mainAxisSize: pw.MainAxisSize.min,
+                          children: [
+                            pw.Text(
+                              field[0],
+                              style: pw.TextStyle(
+                                fontSize: 8,
+                                color: footerColor,
+                              ),
+                            ),
+                            pw.SizedBox(width: 5),
+                            pw.Text(
+                              field[1],
+                              style: const pw.TextStyle(fontSize: 9),
+                            ),
+                          ],
+                        ),
+                    ],
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// "Circuit Overseer: John Smith & Jane Smith · (555) 123-4567 · j@x.com
+  /// · 1 Circuit Way", omitting blank segments. Single-line form used where a
+  /// callout cannot be drawn, such as the Excel header.
+  /// Returns null when every overseer field is blank.
   static String? circuitOverseerSummary(Congregation? congregation) {
     if (congregation == null) return null;
-    final name = congregation.circuitOverseerName.trim();
-    final spouse = congregation.circuitOverseerSpouseName.trim();
-    final phone = congregation.circuitOverseerPhone.trim();
-    final email = congregation.circuitOverseerEmail.trim();
-    final namePart = [
-      if (name.isNotEmpty) name,
-      if (spouse.isNotEmpty) spouse,
-    ].join(' & ');
+    final namePart = _overseerName(congregation);
     final parts = [
       if (namePart.isNotEmpty) namePart,
-      if (phone.isNotEmpty) phone,
-      if (email.isNotEmpty) email,
+      for (final value in [
+        congregation.circuitOverseerPhone,
+        congregation.circuitOverseerEmail,
+        congregation.circuitOverseerAddress,
+      ])
+        if (value.trim().isNotEmpty) value.trim(),
     ];
     if (parts.isEmpty) return null;
     return 'Circuit Overseer: ${parts.join(' · ')}';
+  }
+
+  /// "John Smith & Jane Smith", or an empty string when both names are blank.
+  static String _overseerName(Congregation congregation) {
+    final name = congregation.circuitOverseerName.trim();
+    final spouse = congregation.circuitOverseerSpouseName.trim();
+    return [
+      if (name.isNotEmpty) name,
+      if (spouse.isNotEmpty) spouse,
+    ].join(' & ');
   }
 
   static pw.Widget pageFooter(pw.Context context, {String? leftText}) => pw.Row(
@@ -155,7 +237,7 @@ class PdfStyles {
 String formatPersonName(String firstName, String lastName) {
   final f = firstName.trim();
   final l = lastName.trim();
-  if (l.isEmpty && f.isEmpty) return '—';
+  if (l.isEmpty && f.isEmpty) return '';
   if (l.isEmpty) return f;
   if (f.isEmpty) return l;
   return '$l, $f';

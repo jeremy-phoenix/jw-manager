@@ -2,8 +2,8 @@ import 'package:excel/excel.dart';
 import 'package:congregation_manager/data/database.dart';
 import 'package:congregation_manager/reporting/pdf_styles.dart';
 
-/// Writes the shared report header (title, congregation identity with
-/// generated-on timestamp, optional circuit overseer line) starting at row 0,
+/// Writes the shared report header (title, optional congregation identity and
+/// circuit overseer line) starting at row 0,
 /// each line merged across [columnSpan] columns.
 ///
 /// Returns the first free row after a blank spacer row. Header height varies
@@ -15,7 +15,6 @@ int writeExcelReportHeader(
   required int columnSpan,
   Congregation? congregation,
   String? circuitOverseerLine,
-  DateTime? generatedAt,
 }) {
   var row = 0;
 
@@ -47,12 +46,22 @@ int writeExcelReportHeader(
     fontColorHex: ExcelColor.fromHexString('#757575'),
     horizontalAlign: HorizontalAlign.Center,
   );
-  writeMergedLine(
-    PdfStyles.congregationIdentityLine(congregation, generatedAt),
-    metaStyle,
-  );
+  final identity = PdfStyles.congregationIdentityLine(congregation);
+  if (identity != null) {
+    writeMergedLine(identity, metaStyle);
+  }
   if (circuitOverseerLine != null && circuitOverseerLine.isNotEmpty) {
-    writeMergedLine(circuitOverseerLine, metaStyle);
+    // Emphasised rather than metadata-grey: the overseer contact is a field of
+    // the report, not a caption for it.
+    writeMergedLine(
+      circuitOverseerLine,
+      CellStyle(
+        bold: true,
+        fontSize: 11,
+        fontColorHex: ExcelColor.fromHexString('#1565C0'),
+        horizontalAlign: HorizontalAlign.Center,
+      ),
+    );
   }
 
   return row + 1;

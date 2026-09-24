@@ -3,7 +3,9 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:printing/printing.dart';
+import 'package:pdf/widgets.dart' as pw;
 import 'package:congregation_manager/data/database.dart';
+import 'package:congregation_manager/data/service_year.dart';
 import 'package:congregation_manager/reporting/publisher_directory_report.dart';
 import 'package:congregation_manager/reporting/publisher_list_report.dart';
 import 'package:congregation_manager/reporting/publisher_contact_list_report.dart';
@@ -16,6 +18,7 @@ import 'package:congregation_manager/reporting/service_report_by_group_report.da
 import 'package:congregation_manager/reporting/field_service_group_summary_report.dart';
 import 'package:congregation_manager/reporting/pioneer_hours_report.dart';
 import 'package:congregation_manager/reporting/missing_reports_by_group_report.dart';
+import 'package:congregation_manager/reporting/ministry_totals_report.dart';
 import 'package:congregation_manager/services/export_progress.dart';
 import 'package:congregation_manager/services/publisher_record_writer.dart';
 
@@ -96,7 +99,10 @@ class ReportService {
   }
 
   /// Publisher Contact List — landscape, names + addresses + phones + groups.
-  Future<void> previewPublisherContactList(BuildContext context) async {
+  Future<void> previewPublisherContactList(
+    BuildContext context, {
+    bool startInactiveOnNewPage = false,
+  }) async {
     final persons = await db.getAllPersons(congregationId: congregationId);
     final phones = await _loadAllPhones();
     final groups = await _loadGroupsById();
@@ -106,6 +112,7 @@ class ReportService {
       phonesByPerson: phones,
       groupsById: groups,
       congregation: await _loadCongregation(),
+      startInactiveOnNewPage: startInactiveOnNewPage,
     );
 
     if (!context.mounted) return;
@@ -381,86 +388,87 @@ class ReportService {
     );
   }
 
-  /// Congregation Summary — all active, new inactive, reactivated.
-  Future<void> previewCongregationSummary(BuildContext context) async {
-    final summary = await _loadCongregationSummary();
+  /// Congregation Ministry Totals — a service year of monthly figures for
+  /// publishers, auxiliary pioneers and regular pioneers.
+  Future<void> previewMinistryTotals(
+    BuildContext context, {
+    required int serviceYear,
+  }) async {
+    final persons = await db.getAllPersons(congregationId: congregationId);
+    final reports = await db.getServiceReports(
+      year: serviceYear,
+      congregationId: congregationId,
+    );
 
-    final doc = generateCongregationSummaryReport(
-      allActive: summary.allActive,
-      newInactive: summary.newInactive,
-      reactivated: summary.reactivated,
+    final doc = generateMinistryTotalsReport(
+      persons: persons,
+      reports: reports,
+      serviceYear: serviceYear,
       congregation: await _loadCongregation(),
+    );
+
+    if (!context.mounted) return;
+    await _showPreview(context, doc, kMinistryTotalsTitle);
+  }
+
+  Future<Uint8List> buildMinistryTotalsExcelBytes({
+    required int serviceYear,
+  }) async {
+    final persons = await db.getAllPersons(congregationId: congregationId);
+    final reports = await db.getServiceReports(
+      year: serviceYear,
+      congregationId: congregationId,
+    );
+
+    return buildMinistryTotalsExcel(
+      persons: persons,
+      reports: reports,
+      serviceYear: serviceYear,
+      congregation: await _loadCongregation(),
+    );
+  }
+
+  /// Congregation Summary — all active, new inactive, reactivated.
+  Future<void> previewCongregationSummary(
+    BuildContext context, {
+    int? serviceYear,
+    int throughMonth = 8,
+  }) async {
+    final doc = await buildCongregationSummary(
+      serviceYear: serviceYear,
+      throughMonth: throughMonth,
     );
 
     if (!context.mounted) return;
     await _showPreview(context, doc, 'Congregation Summary - All Categories');
   }
 
-  Future<_CongregationSummaryLists> _loadCongregationSummary() async {
-    final persons = (await db.getAllPersons(
+  /// Uses the same analysis as the screen; defaults to the last completed year.
+  Future<pw.Document> buildCongregationSummary({
+    int? serviceYear,
+    int throughMonth = 8,
+  }) async {
+    final analysis = await db.getCongregationAnalysis(
       congregationId: congregationId,
-    )).where((p) => p.isActive).toList();
-    final allActive = <Person>[];
-    final newInactive = <Person>[];
-    final reactivated = <Person>[];
-
-    for (final person in persons) {
-      final reports = await db.getServiceReports(personId: person.id);
-      reports.sort(
-        (a, b) => _serviceYearIndex(
-          a.year,
-          a.month,
-        ).compareTo(_serviceYearIndex(b.year, b.month)),
-      );
-
-      final shared = reports.map((r) => r.sharedInMinistry).toList();
-      if (shared.isEmpty) continue;
-
-      final last6 = shared.length > 6
-          ? shared.sublist(shared.length - 6)
-          : shared;
-      final isMinistryActive = last6.any((value) => value);
-      if (isMinistryActive) allActive.add(person);
-
-      final inactivity = _findInactivityStreak(shared);
-      if (inactivity.hasStreak && !isMinistryActive) {
-        newInactive.add(person);
-      }
-
-      if (inactivity.hasStreak && inactivity.endIndex < shared.length - 1) {
-        final sharedAfter = shared
-            .sublist(inactivity.endIndex + 1)
-            .any((value) => value);
-        if (sharedAfter) reactivated.add(person);
-      }
-    }
-
-    return _CongregationSummaryLists(
-      allActive: allActive,
-      newInactive: newInactive,
-      reactivated: reactivated,
+      serviceYear: serviceYear,
+      throughMonth: throughMonth,
     );
-  }
-
-  static int _serviceYearIndex(int year, int month) {
-    final serviceYear = month >= 9 ? year + 1 : year;
-    final serviceMonth = month >= 9 ? month - 8 : month + 4;
-    return serviceYear * 12 + serviceMonth;
-  }
-
-  static _InactivityStreak _findInactivityStreak(List<bool> reports) {
-    var consecutiveNoShare = 0;
-    for (var i = 0; i < reports.length; i++) {
-      if (reports[i]) {
-        consecutiveNoShare = 0;
-      } else {
-        consecutiveNoShare++;
-        if (consecutiveNoShare >= 6) {
-          return _InactivityStreak(hasStreak: true, endIndex: i);
-        }
-      }
+    final people = await db.getAllPersons(congregationId: congregationId);
+    List<Person> members(List<int> personIds) {
+      final ids = personIds.toSet();
+      return people.where((person) => ids.contains(person.id)).toList();
     }
-    return const _InactivityStreak(hasStreak: false, endIndex: -1);
+
+    return generateCongregationSummaryReport(
+      allActive: members(analysis.allActivePersonIds),
+      newInactive: members(analysis.newInactivePersonIds),
+      reactivated: members(analysis.reactivatedPersonIds),
+      periodLabel:
+          'Service year ${analysis.serviceYear}: '
+          '${formatServiceMonth(analysis.serviceYear, 9)} - '
+          '${formatServiceMonth(analysis.serviceYear, analysis.throughMonth)}',
+      congregation: await _loadCongregation(),
+    );
   }
 
   // ── Preview helper ───────────────────────────────
@@ -625,13 +633,7 @@ class ReportService {
         message: 'Exporting Congregation Summary',
       ),
     );
-    final summary = await _loadCongregationSummary();
-    final summaryDoc = generateCongregationSummaryReport(
-      allActive: summary.allActive,
-      newInactive: summary.newInactive,
-      reactivated: summary.reactivated,
-      congregation: congregation,
-    );
+    final summaryDoc = await buildCongregationSummary();
     await File(
       '$dirPath/Congregation_Summary_All_Categories.pdf',
     ).writeAsBytes(await summaryDoc.save());
@@ -667,7 +669,10 @@ class ReportService {
     await File(filePath).writeAsBytes(bytes);
   }
 
-  /// Export S-21 publisher record PDFs for all active persons.
+  /// Export S-21 publisher record PDFs.
+  ///
+  /// Covers the active persons by default; [includeInactive] adds the
+  /// inactive ones, and [personIds] restricts the export to a selection.
   Future<List<String>> exportPublisherRecords({
     required String dirPath,
     required int serviceYear,
@@ -676,6 +681,8 @@ class ReportService {
     bool groupByFieldServiceGroup = false,
     bool twoYearsPerPage = false,
     bool onlyUpToPreviousMonth = false,
+    bool includeInactive = false,
+    Set<int>? personIds,
     String fileNameTemplate = '{LastName}, {FirstName}',
     ExportProgressCallback? onProgress,
   }) async {
@@ -686,27 +693,32 @@ class ReportService {
     final groupsById = groupByFieldServiceGroup
         ? await _loadGroupsById()
         : const <int, FieldServiceGroup>{};
-    final active = persons.where((p) => p.isActive).toList()
-      ..sort((a, b) {
-        if (groupByFieldServiceGroup) {
-          final byGroup = _groupSortName(
-            a,
-            groupsById,
-          ).compareTo(_groupSortName(b, groupsById));
-          if (byGroup != 0) return byGroup;
-        }
-        return '${a.lastName}, ${a.firstName}'.compareTo(
-          '${b.lastName}, ${b.firstName}',
-        );
-      });
+    // An explicit selection wins over the active/inactive filter: the user
+    // already picked exactly whose records to export.
+    final selected =
+        persons.where((p) {
+          if (personIds != null) return personIds.contains(p.id);
+          return includeInactive || p.isActive;
+        }).toList()..sort((a, b) {
+          if (groupByFieldServiceGroup) {
+            final byGroup = _groupSortName(
+              a,
+              groupsById,
+            ).compareTo(_groupSortName(b, groupsById));
+            if (byGroup != 0) return byGroup;
+          }
+          return '${a.lastName}, ${a.firstName}'.compareTo(
+            '${b.lastName}, ${b.firstName}',
+          );
+        });
 
     final reportsByPerson = <int, List<ServiceReport>>{};
-    for (var i = 0; i < active.length; i++) {
-      final p = active[i];
+    for (var i = 0; i < selected.length; i++) {
+      final p = selected[i];
       onProgress?.call(
         ExportProgress(
           current: i,
-          total: active.length,
+          total: selected.length,
           message: 'Loading service report history',
           detail: '${p.lastName}, ${p.firstName}',
         ),
@@ -720,7 +732,7 @@ class ReportService {
     }
 
     return PublisherRecordWriter.exportAllPersonRecords(
-      persons: active,
+      persons: selected,
       reportsByPerson: reportsByPerson,
       serviceYear: serviceYear,
       outputDir: dirPath,
@@ -753,23 +765,4 @@ class ReportService {
     if (groupName == null || groupName.isEmpty) return 'Unassigned';
     return groupName;
   }
-}
-
-class _CongregationSummaryLists {
-  final List<Person> allActive;
-  final List<Person> newInactive;
-  final List<Person> reactivated;
-
-  const _CongregationSummaryLists({
-    required this.allActive,
-    required this.newInactive,
-    required this.reactivated,
-  });
-}
-
-class _InactivityStreak {
-  final bool hasStreak;
-  final int endIndex;
-
-  const _InactivityStreak({required this.hasStreak, required this.endIndex});
 }

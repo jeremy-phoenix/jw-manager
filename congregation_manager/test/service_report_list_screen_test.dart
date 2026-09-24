@@ -3,9 +3,11 @@ import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:congregation_manager/data/database.dart';
+import 'package:congregation_manager/data/enums.dart';
 import 'package:congregation_manager/providers/congregation_providers.dart';
 import 'package:congregation_manager/providers/database_provider.dart';
 import 'package:congregation_manager/providers/service_report_providers.dart';
@@ -26,11 +28,9 @@ void main() {
     final db = AppDatabase.forTesting(NativeDatabase.memory());
     addTearDown(db.close);
 
-    final now = DateTime.now();
-    final selectedYear = now.month >= 9 ? now.year + 1 : now.year;
-    final selectedMonth = now.day <= 20
-        ? DateTime(now.year, now.month - 1).month
-        : now.month;
+    final period = defaultServiceReportPeriod();
+    final selectedYear = period.serviceYear;
+    final selectedMonth = period.month;
 
     final congregationId = await db
         .into(db.congregations)
@@ -137,11 +137,9 @@ void main() {
       final db = AppDatabase.forTesting(NativeDatabase.memory());
       addTearDown(db.close);
 
-      final now = DateTime.now();
-      final selectedYear = now.month >= 9 ? now.year + 1 : now.year;
-      final selectedMonth = now.day <= 20
-          ? DateTime(now.year, now.month - 1).month
-          : now.month;
+      final period = defaultServiceReportPeriod();
+      final selectedYear = period.serviceYear;
+      final selectedMonth = period.month;
 
       final congregationId = await db
           .into(db.congregations)
@@ -237,11 +235,9 @@ void main() {
     final db = AppDatabase.forTesting(NativeDatabase.memory());
     addTearDown(db.close);
 
-    final now = DateTime.now();
-    final selectedYear = now.month >= 9 ? now.year + 1 : now.year;
-    final selectedMonth = now.day <= 20
-        ? DateTime(now.year, now.month - 1).month
-        : now.month;
+    final period = defaultServiceReportPeriod();
+    final selectedYear = period.serviceYear;
+    final selectedMonth = period.month;
 
     final congregationId = await db
         .into(db.congregations)
@@ -316,11 +312,9 @@ void main() {
       final db = AppDatabase.forTesting(NativeDatabase.memory());
       addTearDown(db.close);
 
-      final now = DateTime.now();
-      final selectedYear = now.month >= 9 ? now.year + 1 : now.year;
-      final selectedMonth = now.day <= 20
-          ? DateTime(now.year, now.month - 1).month
-          : now.month;
+      final period = defaultServiceReportPeriod();
+      final selectedYear = period.serviceYear;
+      final selectedMonth = period.month;
 
       final congregationId = await db
           .into(db.congregations)
@@ -406,6 +400,122 @@ void main() {
       expect(find.text('Rows: 3'), findsOneWidget);
     },
   );
+
+  testWidgets('shows a read-only pioneer indicator and links to the person', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({});
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 700);
+    addTearDown(() {
+      tester.view.resetDevicePixelRatio();
+      tester.view.resetPhysicalSize();
+    });
+
+    final db = AppDatabase.forTesting(NativeDatabase.memory());
+    addTearDown(db.close);
+
+    final period = defaultServiceReportPeriod();
+    final selectedYear = period.serviceYear;
+    final selectedMonth = period.month;
+    final congregationId = await db
+        .into(db.congregations)
+        .insert(
+          CongregationsCompanion.insert(
+            name: const drift.Value('Test Congregation'),
+          ),
+        );
+    final personId = await _insertPerson(
+      db,
+      congregationId,
+      firstName: 'Sally',
+      lastName: 'Special',
+      pioneerType: PioneerType.specialPioneer,
+    );
+    final reportId = await _insertReport(
+      db,
+      personId: personId,
+      year: selectedYear,
+      month: selectedMonth,
+      hours: 20,
+      isAuxiliaryPioneer: true,
+    );
+    final publisherId = await _insertPerson(
+      db,
+      congregationId,
+      firstName: 'Paul',
+      lastName: 'Publisher',
+    );
+    await _insertReport(
+      db,
+      personId: publisherId,
+      year: selectedYear,
+      month: selectedMonth,
+      hours: 0,
+    );
+
+    final container = ProviderContainer(
+      overrides: [
+        databaseProvider.overrideWithValue(db),
+        initialCongregationIdProvider.overrideWithValue(congregationId),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final router = GoRouter(
+      initialLocation: '/reports',
+      routes: [
+        GoRoute(
+          path: '/reports',
+          builder: (_, _) => const ServiceReportListScreen(),
+        ),
+        GoRoute(
+          path: '/persons/edit/:id',
+          builder: (_, state) => Scaffold(
+            body: Text('Person record ${state.pathParameters['id']}'),
+          ),
+        ),
+      ],
+    );
+    addTearDown(router.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp.router(routerConfig: router),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('SP'), findsOneWidget);
+    expect(find.text('Pub'), findsNothing);
+    expect(find.byType(PopupMenuButton<PioneerType>), findsNothing);
+    final auxCheckbox = find.descendant(
+      of: find.byKey(ValueKey('service-report-$reportId-auxiliary')),
+      matching: find.byType(Checkbox),
+    );
+    expect(tester.widget<Checkbox>(auxCheckbox).value, isTrue);
+
+    final person = await db.getPerson(personId);
+    final report = (await db.getServiceReports(personId: personId)).single;
+    expect(person.pioneerType, PioneerType.specialPioneer);
+    expect(report.isAuxiliaryPioneer, isTrue);
+    expect(find.text('SP'), findsOneWidget);
+    expect(tester.widget<Checkbox>(auxCheckbox).value, isTrue);
+
+    await tester.tap(find.byTooltip("Month's Statistics"));
+    await tester.pumpAndSettle();
+    expect(find.text('Auxiliary Pioneers'), findsOneWidget);
+    expect(find.text('Regular Pioneers'), findsOneWidget);
+    expect(find.text('Special Pioneers'), findsOneWidget);
+    expect(find.text('Field Missionaries'), findsOneWidget);
+    await tester.tap(find.widgetWithText(TextButton, 'Close'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Special, Sally'));
+    await tester.pumpAndSettle();
+    expect(find.text('Person record $personId'), findsOneWidget);
+  });
 }
 
 Finder _editableTextWithValue(String value) {
@@ -427,6 +537,7 @@ Future<int> _insertPerson(
   required String firstName,
   required String lastName,
   bool isActive = true,
+  PioneerType pioneerType = PioneerType.none,
 }) {
   return db
       .into(db.persons)
@@ -436,6 +547,7 @@ Future<int> _insertPerson(
           lastName: drift.Value(lastName),
           congregationId: drift.Value(congregationId),
           isActive: drift.Value(isActive),
+          pioneerType: drift.Value(pioneerType),
         ),
       );
 }
@@ -449,6 +561,7 @@ Future<int> _insertReport(
   required double hours,
   String note = '',
   bool isActive = true,
+  bool isAuxiliaryPioneer = false,
 }) {
   return db
       .into(db.serviceReports)
@@ -457,6 +570,7 @@ Future<int> _insertReport(
           year: year,
           month: month,
           personId: personId,
+          isAuxiliaryPioneer: drift.Value(isAuxiliaryPioneer),
           bibleStudies: drift.Value(bibleStudies),
           hours: drift.Value(hours),
           note: drift.Value(note),

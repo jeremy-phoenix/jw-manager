@@ -1,13 +1,13 @@
 import 'dart:typed_data';
 
 import 'package:excel/excel.dart';
-import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:congregation_manager/data/database.dart';
 import 'package:congregation_manager/reporting/excel_report_header.dart';
 import 'package:congregation_manager/reporting/pdf_styles.dart';
 import 'package:congregation_manager/reporting/service_report_group_data.dart';
+import 'package:congregation_manager/data/service_year.dart';
 
 /// Field Service Group Totals — portrait PDF.
 ///
@@ -21,8 +21,7 @@ pw.Document generateFieldServiceGroupSummaryReport({
   required int month,
   Congregation? congregation,
 }) {
-  final monthName = DateFormat.MMMM().format(DateTime(year, month));
-  final subtitle = '$monthName $year';
+  final subtitle = formatServiceMonth(year, month);
 
   final buckets = buildServiceGroupBuckets(
     persons: persons,
@@ -116,8 +115,7 @@ Uint8List buildFieldServiceGroupSummaryExcel({
   required int month,
   Congregation? congregation,
 }) {
-  final monthName = DateFormat.MMMM().format(DateTime(year, month));
-  final subtitle = '$monthName $year';
+  final subtitle = formatServiceMonth(year, month);
 
   final buckets = buildServiceGroupBuckets(
     persons: persons,
@@ -156,7 +154,7 @@ Uint8List buildFieldServiceGroupSummaryExcel({
 
   final headerRow = writeExcelReportHeader(
     sheet,
-    title: 'Field Service Group Totals — $subtitle',
+    title: 'Field Service Group Totals - $subtitle',
     columnSpan: headers.length,
     congregation: congregation,
   );

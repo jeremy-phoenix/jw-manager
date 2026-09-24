@@ -291,7 +291,7 @@ class PublisherRecordWriter {
         const ExportProgress(
           current: 0,
           total: 0,
-          message: 'No active publishers to export',
+          message: 'No publishers to export',
         ),
       );
       return errors;
@@ -318,6 +318,9 @@ class PublisherRecordWriter {
 
         var subDir = outputDir;
         final subDirectoryParts = <String>[];
+        if (!person.isActive) {
+          subDirectoryParts.add(_inactiveFolderName);
+        }
         if (groupByFieldServiceGroup) {
           subDirectoryParts.add(
             _getFieldServiceGroupFolderName(person, groupsById),
@@ -403,6 +406,9 @@ class PublisherRecordWriter {
     final sanitized = value.replaceAll(RegExp(r'[<>:"/\\|?*]'), '_').trim();
     return sanitized.isEmpty ? 'Unnamed' : sanitized;
   }
+
+  /// Folder that keeps inactive publishers' records apart from active ones.
+  static const _inactiveFolderName = 'Inactive';
 
   static String _getRoleFolderName(Person person) {
     if (person.pioneerType == PioneerType.regularPioneer) {

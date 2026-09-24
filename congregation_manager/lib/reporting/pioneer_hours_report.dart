@@ -1,7 +1,6 @@
 import 'dart:typed_data';
 
 import 'package:excel/excel.dart';
-import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:congregation_manager/data/database.dart';
@@ -9,6 +8,7 @@ import 'package:congregation_manager/data/enums.dart';
 import 'package:congregation_manager/reporting/excel_report_header.dart';
 import 'package:congregation_manager/reporting/pdf_styles.dart';
 import 'package:congregation_manager/reporting/service_report_group_data.dart';
+import 'package:congregation_manager/data/service_year.dart';
 
 /// A single pioneer's hours line for a period.
 class PioneerHoursRow {
@@ -124,8 +124,7 @@ pw.Document generatePioneerHoursReport({
   required int month,
   Congregation? congregation,
 }) {
-  final monthName = DateFormat.MMMM().format(DateTime(year, month));
-  final subtitle = '$monthName $year';
+  final subtitle = formatServiceMonth(year, month);
 
   final rows = buildPioneerHoursRows(
     persons: persons,
@@ -195,7 +194,7 @@ pw.Document generatePioneerHoursReport({
                   r.groupName,
                   formatHours(r.monthHours),
                   formatHours(r.yearToDateHours),
-                  r.bibleStudies > 0 ? '${r.bibleStudies}' : '—',
+                  r.bibleStudies > 0 ? '${r.bibleStudies}' : '',
                 ],
               [
                 'Total (${rows.length})',
@@ -223,8 +222,7 @@ Uint8List buildPioneerHoursExcel({
   required int month,
   Congregation? congregation,
 }) {
-  final monthName = DateFormat.MMMM().format(DateTime(year, month));
-  final subtitle = '$monthName $year';
+  final subtitle = formatServiceMonth(year, month);
 
   final rows = buildPioneerHoursRows(
     persons: persons,
@@ -265,7 +263,7 @@ Uint8List buildPioneerHoursExcel({
 
   final headerRow = writeExcelReportHeader(
     sheet,
-    title: 'Pioneer Hours — $subtitle',
+    title: 'Pioneer Hours - $subtitle',
     columnSpan: headers.length,
     congregation: congregation,
   );

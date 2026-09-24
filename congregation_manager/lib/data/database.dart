@@ -7,6 +7,7 @@ import 'package:drift_flutter/drift_flutter.dart';
 import 'package:congregation_manager/data/tables.dart';
 import 'package:congregation_manager/data/enums.dart';
 import 'package:congregation_manager/data/statistics.dart';
+import 'package:congregation_manager/data/service_year.dart';
 import 'package:congregation_manager/data/sync_models.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -1924,6 +1925,17 @@ class AppDatabase extends _$AppDatabase {
     return result;
   }
 
+  Future<void> updatePersonPioneerType(int id, PioneerType pioneerType) async {
+    final existing = await getPerson(id);
+    await _updatePersonFields(
+      existing,
+      PersonsCompanion(
+        pioneerType: Value(pioneerType),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
   Future<void> archivePerson(
     int id, {
     required PersonArchiveReason reason,
@@ -2494,6 +2506,11 @@ class AppDatabase extends _$AppDatabase {
     final recentlyInactive = await inactiveQuery.get();
 
     final allPersons = [...allActive, ...recentlyInactive];
+    final allPeriods = await select(auxiliaryPioneerPeriods).get();
+    final periodsByPerson = <int, List<AuxiliaryPioneerPeriod>>{};
+    for (final period in allPeriods) {
+      periodsByPerson.putIfAbsent(period.personId, () => []).add(period);
+    }
     final existing = await getServiceReports(
       year: year,
       month: month,
@@ -2503,11 +2520,16 @@ class AppDatabase extends _$AppDatabase {
 
     for (final person in allPersons) {
       if (!existingPersonIds.contains(person.id)) {
+        final isAuxiliaryPioneer =
+            person.pioneerType == PioneerType.none &&
+            (periodsByPerson[person.id] ?? const <AuxiliaryPioneerPeriod>[])
+                .any((period) => _periodIncludes(period, year, month));
         await insertServiceReport(
           ServiceReportsCompanion.insert(
             year: year,
             month: month,
             personId: person.id,
+            isAuxiliaryPioneer: Value(isAuxiliaryPioneer),
           ),
         );
       }
@@ -2520,6 +2542,19 @@ class AppDatabase extends _$AppDatabase {
     );
   }
 
+  static bool _periodIncludes(
+    AuxiliaryPioneerPeriod period,
+    int year,
+    int month,
+  ) {
+    final target = year * 12 + month;
+    final start = period.startYear * 12 + period.startMonth;
+    if (target < start) return false;
+    if (period.endYear == null || period.endMonth == null) return true;
+    final end = period.endYear! * 12 + period.endMonth!;
+    return target <= end;
+  }
+
   /// Get month statistics for a given service year and month.
   Future<FieldServiceReportStatistics> getMonthStatistics(
     int year,
@@ -2527,12 +2562,12 @@ class AppDatabase extends _$AppDatabase {
     int? congregationId,
   }) async {
     final personQuery = select(persons)
-      ..where((p) => p.isActive.equals(true))
       ..where((p) => p.recordStatus.equalsValue(PersonRecordStatus.current));
     if (congregationId != null) {
       personQuery.where((p) => p.congregationId.equals(congregationId));
     }
-    final activePersons = await personQuery.get();
+    final currentPersons = await personQuery.get();
+    final activePersons = currentPersons.where((person) => person.isActive);
 
     final reports = await getServiceReports(
       year: year,
@@ -2542,126 +2577,135 @@ class AppDatabase extends _$AppDatabase {
     final activeReports = reports.where((r) {
       return r.sharedInMinistry || r.hours > 0 || r.bibleStudies > 0;
     }).toList();
+    final pioneerTypesByPerson = {
+      for (final person in currentPersons) person.id: person.pioneerType,
+    };
 
-    // Build a set of person IDs that are regular/special pioneers
-    final pioneerPersonIds = <int>{};
-    for (final p in activePersons) {
-      if (p.pioneerType == PioneerType.regularPioneer ||
-          p.pioneerType == PioneerType.specialPioneer ||
-          p.pioneerType == PioneerType.fieldMissionary) {
-        pioneerPersonIds.add(p.id);
-      }
+    final reportsByCategory =
+        <FieldServicePublisherCategory, List<ServiceReport>>{
+          for (final category in FieldServicePublisherCategory.values)
+            category: <ServiceReport>[],
+        };
+    for (final report in activeReports) {
+      final category = classifyFieldServicePublisher(
+        pioneerType: pioneerTypesByPerson[report.personId] ?? PioneerType.none,
+        isAuxiliaryPioneer: report.isAuxiliaryPioneer,
+      );
+      reportsByCategory[category]!.add(report);
     }
 
-    final publishers = activeReports
-        .where(
-          (r) =>
-              !r.isAuxiliaryPioneer && !pioneerPersonIds.contains(r.personId),
-        )
-        .toList();
-    final auxPioneers = activeReports
-        .where((r) => r.isAuxiliaryPioneer)
-        .toList();
-    final regPioneers = activeReports
-        .where(
-          (r) => pioneerPersonIds.contains(r.personId) && !r.isAuxiliaryPioneer,
-        )
-        .toList();
+    ReportMetrics metricsFor(
+      FieldServicePublisherCategory category, {
+      bool includeHours = true,
+    }) {
+      final categoryReports = reportsByCategory[category]!;
+      return ReportMetrics(
+        numberOfReports: categoryReports.length,
+        bibleStudies: categoryReports.fold(
+          0,
+          (sum, report) => sum + report.bibleStudies,
+        ),
+        hours: includeHours
+            ? categoryReports.fold(0.0, (sum, report) => sum + report.hours)
+            : 0,
+        personIds: categoryReports.map((report) => report.personId).toList(),
+      );
+    }
 
     return FieldServiceReportStatistics(
       allActivePublishers: activePersons.length,
-      publishers: ReportMetrics(
-        numberOfReports: publishers.length,
-        bibleStudies: publishers.fold(0, (sum, r) => sum + r.bibleStudies),
-        hours: 0,
+      publishers: metricsFor(
+        FieldServicePublisherCategory.publisher,
+        includeHours: false,
       ),
-      auxiliaryPioneers: ReportMetrics(
-        numberOfReports: auxPioneers.length,
-        bibleStudies: auxPioneers.fold(0, (sum, r) => sum + r.bibleStudies),
-        hours: auxPioneers.fold(0.0, (sum, r) => sum + r.hours),
+      auxiliaryPioneers: metricsFor(
+        FieldServicePublisherCategory.auxiliaryPioneer,
       ),
-      regularPioneers: ReportMetrics(
-        numberOfReports: regPioneers.length,
-        bibleStudies: regPioneers.fold(0, (sum, r) => sum + r.bibleStudies),
-        hours: regPioneers.fold(0.0, (sum, r) => sum + r.hours),
+      regularPioneers: metricsFor(FieldServicePublisherCategory.regularPioneer),
+      specialPioneers: metricsFor(FieldServicePublisherCategory.specialPioneer),
+      fieldMissionaries: metricsFor(
+        FieldServicePublisherCategory.fieldMissionary,
       ),
     );
   }
 
-  /// Get congregation analysis summary.
+  /// Analyze calendar months through [throughMonth] of [serviceYear].
+  /// Defaults to the last completed service year for annual summaries.
+  /// Missing months after the first recorded ministry participation count as
+  /// not reporting. Leading blank reports cannot establish prior activity.
   Future<CongregationAnalysis> getCongregationAnalysis({
     int? congregationId,
+    int? serviceYear,
+    int throughMonth = 8,
   }) async {
+    RangeError.checkValueInInterval(throughMonth, 1, 12, 'throughMonth');
+    final year = serviceYear ?? currentServiceYear() - 1;
+    final start = serviceReportPeriodIndex(year, 9);
+    final end = serviceReportPeriodIndex(year, throughMonth);
     final personQuery = select(persons)
-      ..where((p) => p.isActive.equals(true))
-      ..where((p) => p.recordStatus.equalsValue(PersonRecordStatus.current));
+      ..where((p) => p.recordStatus.equalsValue(PersonRecordStatus.current))
+      ..where((p) => p.deletedAt.isNull());
     if (congregationId != null) {
       personQuery.where((p) => p.congregationId.equals(congregationId));
     }
-    final activePersons = await personQuery.get();
+    final currentPersons = await personQuery.get();
+    // Load the history once, rather than making a query per publisher.
+    final reports = await getServiceReports(congregationId: congregationId);
+    final monthsByPerson = <int, Map<int, bool>>{};
+    for (final report in reports) {
+      if (report.deletedAt != null) continue;
+      final period = serviceReportPeriodIndex(report.year, report.month);
+      if (period > end) continue;
+      final months = monthsByPerson.putIfAbsent(report.personId, () => {});
+      // A duplicate report must not create an extra month or hide activity.
+      months[period] = (months[period] ?? false) || report.sharedInMinistry;
+    }
 
-    int activeCount = 0;
-    int newInactive = 0;
-    int reactivated = 0;
-
-    for (final person in activePersons) {
-      final reports = await getServiceReports(personId: person.id);
-      // Order by service year index
-      reports.sort((a, b) {
-        final aIdx = _serviceYearIndex(a.year, a.month);
-        final bIdx = _serviceYearIndex(b.year, b.month);
-        return aIdx.compareTo(bIdx);
-      });
-
-      final sharedList = reports.map((r) => r.sharedInMinistry).toList();
-      if (sharedList.isEmpty) continue;
-
-      // Active: shared in any of the last 6 reports
-      final last6 = sharedList.length > 6
-          ? sharedList.sublist(sharedList.length - 6)
-          : sharedList;
-      final isActive = last6.any((s) => s);
-      if (isActive) activeCount++;
-
-      // Find inactivity streak (6+ consecutive not shared)
-      final (hasStreak, streakEndIndex) = _findInactivityStreak(sharedList);
-
-      if (hasStreak && !isActive) {
-        newInactive++;
+    final active = <int>[];
+    final newInactive = <int>[];
+    final reactivated = <int>[];
+    for (final person in currentPersons) {
+      final months = monthsByPerson[person.id];
+      if (months == null || months.isEmpty) continue;
+      final sharedPeriods =
+          months.entries
+              .where((entry) => entry.value)
+              .map((entry) => entry.key)
+              .toList()
+            ..sort();
+      if (sharedPeriods.isEmpty) continue;
+      if (sharedPeriods.last >= end - 5) {
+        active.add(person.id);
       }
 
-      if (hasStreak && streakEndIndex < sharedList.length - 1) {
-        final sharedAfter = sharedList
-            .sublist(streakEndIndex + 1)
-            .any((s) => s);
-        if (sharedAfter) reactivated++;
+      // Imports and year entry can save blank months before a new publisher's
+      // first participation. Establish activity before tracking any absence;
+      // the first actual participation is never itself a reactivation.
+      // Carry inactivity across service-year boundaries. Count transitions
+      // only in this service year, once per person in each category.
+      var consecutive = 0;
+      var becameInactive = false;
+      var resumed = false;
+      for (var period = sharedPeriods.first; period <= end; period++) {
+        if (months[period] == true) {
+          if (consecutive >= 6 && period >= start) resumed = true;
+          consecutive = 0;
+        } else {
+          consecutive++;
+          if (consecutive == 6 && period >= start) becameInactive = true;
+        }
       }
+      if (becameInactive) newInactive.add(person.id);
+      if (resumed) reactivated.add(person.id);
     }
 
     return CongregationAnalysis(
-      allActivePublishers: activeCount,
-      newInactivePublishers: newInactive,
-      reactivatedPublishers: reactivated,
+      serviceYear: year,
+      throughMonth: throughMonth,
+      allActivePersonIds: List.unmodifiable(active),
+      newInactivePersonIds: List.unmodifiable(newInactive),
+      reactivatedPersonIds: List.unmodifiable(reactivated),
     );
-  }
-
-  static int _serviceYearIndex(int year, int month) {
-    final sy = month >= 9 ? year + 1 : year;
-    final sm = month >= 9 ? month - 8 : month + 4;
-    return sy * 12 + sm;
-  }
-
-  static (bool, int) _findInactivityStreak(List<bool> reports) {
-    var consecutive = 0;
-    for (var i = 0; i < reports.length; i++) {
-      if (reports[i]) {
-        consecutive = 0;
-      } else {
-        consecutive++;
-        if (consecutive >= 6) return (true, i);
-      }
-    }
-    return (false, -1);
   }
 
   // ──────────────────────────────────────────────────

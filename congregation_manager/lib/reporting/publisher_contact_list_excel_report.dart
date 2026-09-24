@@ -25,7 +25,6 @@ class PublisherContactListExcelReport {
     'Name of Publisher',
     'Address',
     'Phone Number(s)',
-    'Email',
     'Field Service Group',
   ];
 
@@ -34,6 +33,7 @@ class PublisherContactListExcelReport {
     final sheetName = 'Publisher Contact List';
     excel.rename(excel.getDefaultSheet()!, sheetName);
     final sheet = excel[sheetName];
+    sheet.setColumnWidth(0, 6);
 
     final firstFreeRow = writeExcelReportHeader(
       sheet,
@@ -117,7 +117,7 @@ class PublisherContactListExcelReport {
       sheet
           .cell(CellIndex.indexByColumnRow(columnIndex: 2, rowIndex: row))
           .value = TextCellValue(
-        person.address.isEmpty ? '\u2014' : person.address,
+        person.address.isEmpty ? '' : person.address,
       );
       sheet
           .cell(CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: row))
@@ -127,12 +127,7 @@ class PublisherContactListExcelReport {
       sheet
           .cell(CellIndex.indexByColumnRow(columnIndex: 4, rowIndex: row))
           .value = TextCellValue(
-        person.email.isEmpty ? '\u2014' : person.email,
-      );
-      sheet
-          .cell(CellIndex.indexByColumnRow(columnIndex: 5, rowIndex: row))
-          .value = TextCellValue(
-        groupsById[person.fieldServiceGroupId]?.name ?? '\u2014',
+        groupsById[person.fieldServiceGroupId]?.name ?? '',
       );
     }
 
@@ -148,7 +143,7 @@ class PublisherContactListExcelReport {
 
   String _formatPhones(int personId) {
     final phones = phonesByPerson[personId];
-    if (phones == null || phones.isEmpty) return '\u2014';
+    if (phones == null || phones.isEmpty) return '';
     return phones.map((p) => p.number).join(' / ');
   }
 }

@@ -1,8 +1,8 @@
-import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:congregation_manager/data/database.dart';
 import 'package:congregation_manager/reporting/pdf_styles.dart';
+import 'package:congregation_manager/data/service_year.dart';
 
 /// Not Shared in Ministry Report — portrait PDF.
 /// Lists all publishers who did not share in ministry for a given month.
@@ -15,9 +15,8 @@ pw.Document generateNotSharedInMinistryReport({
   required int month,
   Congregation? congregation,
 }) {
-  final monthName = DateFormat.MMMM().format(DateTime(year, month));
   final title = 'Not Shared in Ministry';
-  final subtitle = '$monthName $year';
+  final subtitle = formatServiceMonth(year, month);
 
   // Sort by person name
   final sorted = List<ServiceReport>.from(reports)
@@ -26,10 +25,10 @@ pw.Document generateNotSharedInMinistryReport({
       final pb = personsById[b.personId];
       final nameA = pa != null
           ? formatPersonName(pa.firstName, pa.lastName)
-          : '—';
+          : '';
       final nameB = pb != null
           ? formatPersonName(pb.firstName, pb.lastName)
-          : '—';
+          : '';
       return nameA.compareTo(nameB);
     });
 
@@ -80,10 +79,10 @@ pw.Document generateNotSharedInMinistryReport({
             final person = personsById[r.personId];
             final name = person != null
                 ? formatPersonName(person.firstName, person.lastName)
-                : '—';
+                : '';
             final group = person?.fieldServiceGroupId != null
-                ? groupsById[person!.fieldServiceGroupId]?.name ?? '—'
-                : '—';
+                ? groupsById[person!.fieldServiceGroupId]?.name ?? ''
+                : '';
             return ['${i + 1}', name, group];
           }),
         ),

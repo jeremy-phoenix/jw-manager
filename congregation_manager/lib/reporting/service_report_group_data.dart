@@ -99,9 +99,9 @@ int _compareGroupNames(String a, String b) {
   return a.toLowerCase().compareTo(b.toLowerCase());
 }
 
-/// Format hours for display: integers without a decimal, otherwise one place.
+/// Format positive hours for display, leaving zero or negative values blank.
 String formatHours(double hours) {
-  if (hours <= 0) return '—';
+  if (hours <= 0) return '';
   return hours == hours.roundToDouble()
       ? hours.toInt().toString()
       : hours.toStringAsFixed(1);

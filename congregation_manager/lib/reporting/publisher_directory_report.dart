@@ -108,17 +108,17 @@ List<pw.Widget> _directorySection(
         final p = persons[i];
         final phones = phonesByPerson[p.id] ?? [];
         final phoneStr = phones.isEmpty
-            ? '—'
+            ? ''
             : phones.map((ph) => ph.number).join(', ');
         final group = p.fieldServiceGroupId != null
-            ? groupsById[p.fieldServiceGroupId]?.name ?? '—'
-            : '—';
+            ? groupsById[p.fieldServiceGroupId]?.name ?? ''
+            : '';
         return [
           '${i + 1}',
           formatPersonName(p.firstName, p.lastName),
-          p.address.isEmpty ? '—' : p.address,
+          p.address.isEmpty ? '' : p.address,
           phoneStr,
-          p.email.isEmpty ? '—' : p.email,
+          p.email.isEmpty ? '' : p.email,
           group,
         ];
       }),

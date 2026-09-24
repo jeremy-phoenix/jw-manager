@@ -12,6 +12,7 @@ pw.Document generateCongregationSummaryReport({
   required List<Person> newInactive,
   required List<Person> reactivated,
   Congregation? congregation,
+  String? periodLabel,
 }) {
   final pdf = pw.Document(title: 'Congregation Summary');
 
@@ -22,6 +23,7 @@ pw.Document generateCongregationSummaryReport({
       maxPages: PdfStyles.maxPages,
       header: (context) => PdfStyles.reportTitleBlock(
         title: 'Congregation Summary',
+        subtitle: periodLabel,
         congregation: congregation,
       ),
       footer: (context) => pw.Align(
@@ -32,11 +34,11 @@ pw.Document generateCongregationSummaryReport({
         ),
       ),
       build: (context) => [
-        _summarySection('All Active Publishers', allActive),
+        ..._summarySection('All Active Publishers', allActive),
         pw.SizedBox(height: 10),
-        _summarySection('New Inactive Publishers', newInactive),
+        ..._summarySection('New Inactive Publishers', newInactive),
         pw.SizedBox(height: 10),
-        _summarySection('Reactivated Publishers', reactivated),
+        ..._summarySection('Reactivated Publishers', reactivated),
       ],
     ),
   );
@@ -44,7 +46,7 @@ pw.Document generateCongregationSummaryReport({
   return pdf;
 }
 
-pw.Widget _summarySection(String title, List<Person> people) {
+List<pw.Widget> _summarySection(String title, List<Person> people) {
   final sorted = List<Person>.from(people)
     ..sort(
       (a, b) => formatPersonName(
@@ -55,57 +57,56 @@ pw.Widget _summarySection(String title, List<Person> people) {
 
   final dateFormat = DateFormat.yMMMd();
 
-  return pw.Column(
-    crossAxisAlignment: pw.CrossAxisAlignment.start,
-    children: [
-      pw.Text(
-        title,
-        style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold),
-      ),
-      pw.Text(
-        '${sorted.length} record(s)',
-        style: pw.TextStyle(fontSize: 10, color: PdfStyles.footerColor),
-      ),
-      pw.SizedBox(height: 5),
-      if (sorted.isEmpty)
-        pw.Padding(
-          padding: const pw.EdgeInsets.symmetric(vertical: 10),
-          child: pw.Text(
-            'No records in this category.',
-            style: pw.TextStyle(
-              fontStyle: pw.FontStyle.italic,
-              color: PdfStyles.footerColor,
-            ),
-          ),
-        )
-      else
-        pw.TableHelper.fromTextArray(
-          border: null,
-          headerStyle: pw.TextStyle(
-            fontSize: 9,
-            fontWeight: pw.FontWeight.bold,
-          ),
-          headerDecoration: PdfStyles.headerDecoration,
-          cellStyle: const pw.TextStyle(fontSize: 9),
-          cellDecoration: (index, data, rowNum) => PdfStyles.rowBorder,
-          cellPadding: const pw.EdgeInsets.all(4),
-          cellAlignments: {
-            0: pw.Alignment.center,
-            1: pw.Alignment.centerLeft,
-            2: pw.Alignment.centerLeft,
-            3: pw.Alignment.centerLeft,
-          },
-          headers: ['#', 'First Name', 'Last Name', 'Baptism Date'],
-          data: List.generate(sorted.length, (i) {
-            final p = sorted[i];
-            return [
-              '${i + 1}',
-              p.firstName,
-              p.lastName,
-              p.baptismDate != null ? dateFormat.format(p.baptismDate!) : '—',
-            ];
-          }),
+  return [
+    pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: [
+        pw.Text(
+          title,
+          style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold),
         ),
-    ],
-  );
+        pw.Text(
+          '${sorted.length} record(s)',
+          style: pw.TextStyle(fontSize: 10, color: PdfStyles.footerColor),
+        ),
+        pw.SizedBox(height: 5),
+      ],
+    ),
+    if (sorted.isEmpty)
+      pw.Padding(
+        padding: const pw.EdgeInsets.symmetric(vertical: 10),
+        child: pw.Text(
+          'No records in this category.',
+          style: pw.TextStyle(
+            fontStyle: pw.FontStyle.italic,
+            color: PdfStyles.footerColor,
+          ),
+        ),
+      )
+    else
+      pw.TableHelper.fromTextArray(
+        border: null,
+        headerStyle: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold),
+        headerDecoration: PdfStyles.headerDecoration,
+        cellStyle: const pw.TextStyle(fontSize: 9),
+        cellDecoration: (index, data, rowNum) => PdfStyles.rowBorder,
+        cellPadding: const pw.EdgeInsets.all(4),
+        cellAlignments: {
+          0: pw.Alignment.center,
+          1: pw.Alignment.centerLeft,
+          2: pw.Alignment.centerLeft,
+          3: pw.Alignment.centerLeft,
+        },
+        headers: ['#', 'First Name', 'Last Name', 'Baptism Date'],
+        data: List.generate(sorted.length, (i) {
+          final p = sorted[i];
+          return [
+            '${i + 1}',
+            p.firstName,
+            p.lastName,
+            p.baptismDate != null ? dateFormat.format(p.baptismDate!) : '',
+          ];
+        }),
+      ),
+  ];
 }

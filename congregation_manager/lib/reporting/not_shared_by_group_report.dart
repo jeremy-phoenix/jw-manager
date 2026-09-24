@@ -1,8 +1,8 @@
-import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:congregation_manager/data/database.dart';
 import 'package:congregation_manager/reporting/pdf_styles.dart';
+import 'package:congregation_manager/data/service_year.dart';
 
 /// Not Shared in Ministry by Group Report — portrait PDF.
 /// Same data as the flat report but grouped by field service group,
@@ -15,9 +15,8 @@ pw.Document generateNotSharedInMinistryByGroupReport({
   required int month,
   Congregation? congregation,
 }) {
-  final monthName = DateFormat.MMMM().format(DateTime(year, month));
   final title = 'Not Shared in Ministry';
-  final subtitle = '$monthName $year';
+  final subtitle = formatServiceMonth(year, month);
 
   // Build grouped data: groupName → list of (person name)
   final grouped = <String, List<String>>{};
@@ -30,7 +29,7 @@ pw.Document generateNotSharedInMinistryByGroupReport({
         'Unassigned';
     final name = person != null
         ? formatPersonName(person.firstName, person.lastName)
-        : '—';
+        : '';
     grouped.putIfAbsent(groupName, () => []).add(name);
   }
 
@@ -56,7 +55,7 @@ pw.Document generateNotSharedInMinistryByGroupReport({
       maxPages: PdfStyles.maxPages,
       header: (context) => PdfStyles.reportTitleBlock(
         title: title,
-        subtitle: '$subtitle — Grouped by Field Service Group',
+        subtitle: '$subtitle - Grouped by Field Service Group',
         congregation: congregation,
       ),
       footer: (context) => pw.Row(

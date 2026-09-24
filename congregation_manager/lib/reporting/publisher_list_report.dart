@@ -77,12 +77,12 @@ List<pw.Widget> _publisherSection(
       data: List.generate(persons.length, (i) {
         final p = persons[i];
         final group = p.fieldServiceGroupId != null
-            ? groupsById[p.fieldServiceGroupId]?.name ?? '—'
-            : '—';
+            ? groupsById[p.fieldServiceGroupId]?.name ?? ''
+            : '';
         return [
           '${i + 1}',
           formatPersonName(p.firstName, p.lastName),
-          p.address.isEmpty ? '—' : p.address,
+          p.address.isEmpty ? '' : p.address,
           group,
         ];
       }),

@@ -4,15 +4,17 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:intl/intl.dart';
+import 'package:go_router/go_router.dart';
 import 'package:congregation_manager/data/database.dart';
 import 'package:congregation_manager/data/enums.dart';
+import 'package:congregation_manager/data/service_year.dart';
 import 'package:congregation_manager/data/statistics.dart';
 import 'package:congregation_manager/providers/congregation_providers.dart';
 import 'package:congregation_manager/providers/settings_providers.dart';
 import 'package:congregation_manager/providers/database_provider.dart';
 import 'package:congregation_manager/providers/service_report_providers.dart';
 import 'package:congregation_manager/reporting/report_service.dart';
+import 'package:congregation_manager/ui/dialogs/congregation_analysis_dialog.dart';
 import 'package:congregation_manager/ui/widgets/app_popup_menu_item.dart';
 import 'package:congregation_manager/ui/widgets/search_text_field.dart';
 import 'package:congregation_manager/ui/widgets/sticky_data_table.dart';
@@ -75,6 +77,8 @@ class ServiceReportListScreen extends ConsumerWidget {
                     year: year,
                     month: month,
                   );
+                case 'ministry_totals':
+                  svc.previewMinistryTotals(context, serviceYear: year);
                 case 'not_shared':
                   svc.previewNotSharedInMinistry(
                     context,
@@ -111,6 +115,11 @@ class ServiceReportListScreen extends ConsumerWidget {
                 value: 'missing_by_group',
                 icon: Icons.report_off,
                 label: 'Missing Reports by Group',
+              ),
+              AppPopupMenuItem(
+                value: 'ministry_totals',
+                icon: Icons.stacked_line_chart,
+                label: 'Ministry Totals (Service Year)',
               ),
               PopupMenuDivider(),
               AppPopupMenuItem(
@@ -180,6 +189,13 @@ class ServiceReportListScreen extends ConsumerWidget {
                     ),
                     fileName: 'Missing_Reports_$suffix.xlsx',
                   );
+                case 'ministry_totals':
+                  _exportExcelReport(
+                    context,
+                    build: () =>
+                        svc.buildMinistryTotalsExcelBytes(serviceYear: year),
+                    fileName: 'Ministry_Totals_$year.xlsx',
+                  );
               }
             },
             itemBuilder: (_) => [
@@ -202,6 +218,11 @@ class ServiceReportListScreen extends ConsumerWidget {
                 value: 'missing_by_group',
                 icon: Icons.report_off,
                 label: 'Missing Reports by Group',
+              ),
+              AppPopupMenuItem(
+                value: 'ministry_totals',
+                icon: Icons.stacked_line_chart,
+                label: 'Ministry Totals (Service Year)',
               ),
             ],
           ),
@@ -310,7 +331,10 @@ class ServiceReportListScreen extends ConsumerWidget {
               child: _buildYearSelector(ref, selectedYear, serviceYears),
             ),
             const SizedBox(width: 8),
-            Expanded(flex: 2, child: _buildMonthSelector(ref, selectedMonth)),
+            Expanded(
+              flex: 2,
+              child: _buildMonthSelector(ref, selectedYear, selectedMonth),
+            ),
             const SizedBox(width: 8),
             _MonthNavButton(
               icon: Icons.chevron_right,
@@ -360,7 +384,10 @@ class ServiceReportListScreen extends ConsumerWidget {
               onPressed: () => _changeMonth(ref, -1),
             ),
             const SizedBox(width: 8),
-            Expanded(flex: 3, child: _buildMonthSelector(ref, selectedMonth)),
+            Expanded(
+              flex: 3,
+              child: _buildMonthSelector(ref, selectedYear, selectedMonth),
+            ),
             const SizedBox(width: 8),
             _MonthNavButton(
               icon: Icons.chevron_right,
@@ -394,7 +421,7 @@ class ServiceReportListScreen extends ConsumerWidget {
       data: (years) => DropdownButtonFormField<int>(
         initialValue: selectedYear,
         isExpanded: true,
-        decoration: _filterDecoration('Year'),
+        decoration: _filterDecoration('Service Year'),
         items: years
             .map(
               (year) => DropdownMenuItem(
@@ -409,12 +436,16 @@ class ServiceReportListScreen extends ConsumerWidget {
           }
         },
       ),
-      loading: () => _DisabledFilterField(label: 'Year'),
-      error: (e, s) => _DisabledFilterField(label: 'Year', value: '–'),
+      loading: () => _DisabledFilterField(label: 'Service Year'),
+      error: (e, s) => _DisabledFilterField(label: 'Service Year', value: '–'),
     );
   }
 
-  Widget _buildMonthSelector(WidgetRef ref, int selectedMonth) {
+  Widget _buildMonthSelector(
+    WidgetRef ref,
+    int selectedYear,
+    int selectedMonth,
+  ) {
     return DropdownButtonFormField<int>(
       initialValue: selectedMonth,
       isExpanded: true,
@@ -423,7 +454,10 @@ class ServiceReportListScreen extends ConsumerWidget {
           .map(
             (month) => DropdownMenuItem(
               value: month.monthNumber,
-              child: Text(month.displayName, overflow: TextOverflow.ellipsis),
+              child: Text(
+                formatServiceMonth(selectedYear, month.monthNumber),
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
           )
           .toList(),
@@ -640,7 +674,7 @@ Future<void> _generateReports(BuildContext context, WidgetRef ref) async {
   final year = ref.read(selectedYearProvider);
   final month = ref.read(selectedMonthProvider);
   final db = ref.read(databaseProvider);
-  final monthName = DateFormat.MMMM().format(DateTime(2000, month));
+  final monthLabel = formatServiceMonth(year, month);
 
   final result = await showDialog<String>(
     context: context,
@@ -659,13 +693,10 @@ Future<void> _generateReports(BuildContext context, WidgetRef ref) async {
               const SizedBox(height: 16),
               SegmentedButton<String>(
                 segments: [
-                  ButtonSegment(
-                    value: 'month',
-                    label: Text('$monthName $year'),
-                  ),
+                  ButtonSegment(value: 'month', label: Text(monthLabel)),
                   ButtonSegment(
                     value: 'year',
-                    label: Text('Entire Year ($year)'),
+                    label: Text('Entire Service Year ($year)'),
                   ),
                 ],
                 selected: {scope},
@@ -706,7 +737,7 @@ Future<void> _deleteReports(BuildContext context, WidgetRef ref) async {
   final year = ref.read(selectedYearProvider);
   final month = ref.read(selectedMonthProvider);
   final db = ref.read(databaseProvider);
-  final monthName = DateFormat.MMMM().format(DateTime(2000, month));
+  final monthLabel = formatServiceMonth(year, month);
 
   final result = await showDialog<String>(
     context: context,
@@ -725,13 +756,10 @@ Future<void> _deleteReports(BuildContext context, WidgetRef ref) async {
               const SizedBox(height: 16),
               SegmentedButton<String>(
                 segments: [
-                  ButtonSegment(
-                    value: 'month',
-                    label: Text('$monthName $year'),
-                  ),
+                  ButtonSegment(value: 'month', label: Text(monthLabel)),
                   ButtonSegment(
                     value: 'year',
-                    label: Text('Entire Year ($year)'),
+                    label: Text('Entire Service Year ($year)'),
                   ),
                 ],
                 selected: {scope},
@@ -771,20 +799,29 @@ Future<void> _showMonthStatistics(BuildContext context, WidgetRef ref) async {
   final db = ref.read(databaseProvider);
   final year = ref.read(selectedYearProvider);
   final month = ref.read(selectedMonthProvider);
-  final stats = await db.getMonthStatistics(
+  final congregationId = ref.read(currentCongregationIdProvider);
+  final statsFuture = db.getMonthStatistics(
     year,
     month,
-    congregationId: ref.read(currentCongregationIdProvider),
+    congregationId: congregationId,
   );
-  final monthName = DateFormat.MMMM().format(DateTime(2000, month));
+  final personsFuture = db.getAllPersons(congregationId: congregationId);
+  final stats = await statsFuture;
+  final persons = await personsFuture;
+  final nameOrder = ref.read(nameOrderProvider);
+  final namesById = {
+    for (final person in persons)
+      person.id: formatPersonName(person.firstName, person.lastName, nameOrder),
+  };
+  final monthLabel = formatServiceMonth(year, month);
 
   if (!context.mounted) return;
   showDialog(
     context: context,
     builder: (ctx) => AlertDialog(
-      title: Text("$monthName $year — Month's Statistics"),
+      title: Text("$monthLabel — Month's Statistics"),
       content: SizedBox(
-        width: 500,
+        width: 640,
         child: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -805,16 +842,56 @@ Future<void> _showMonthStatistics(BuildContext context, WidgetRef ref) async {
                     title: 'Publishers',
                     metrics: stats.publishers,
                     showHours: false,
+                    onTap: () => _showMetricDetails(
+                      ctx,
+                      title: 'Publishers',
+                      metrics: stats.publishers,
+                      namesById: namesById,
+                    ),
                   ),
                   _MetricsCard(
                     icon: Icons.person_pin,
                     title: 'Auxiliary Pioneers',
                     metrics: stats.auxiliaryPioneers,
+                    onTap: () => _showMetricDetails(
+                      ctx,
+                      title: 'Auxiliary Pioneers',
+                      metrics: stats.auxiliaryPioneers,
+                      namesById: namesById,
+                    ),
                   ),
                   _MetricsCard(
                     icon: Icons.star,
                     title: 'Regular Pioneers',
                     metrics: stats.regularPioneers,
+                    onTap: () => _showMetricDetails(
+                      ctx,
+                      title: 'Regular Pioneers',
+                      metrics: stats.regularPioneers,
+                      namesById: namesById,
+                    ),
+                  ),
+                  _MetricsCard(
+                    icon: Icons.workspace_premium,
+                    title: 'Special Pioneers',
+                    metrics: stats.specialPioneers,
+                    onTap: () => _showMetricDetails(
+                      ctx,
+                      title: 'Special Pioneers',
+                      metrics: stats.specialPioneers,
+                      namesById: namesById,
+                    ),
+                  ),
+                  _MetricsCard(
+                    icon: Icons.travel_explore,
+                    title: 'Field Missionaries',
+                    metrics: stats.fieldMissionaries,
+                    onTap: () => _showMetricDetails(
+                      ctx,
+                      title: 'Field Missionaries',
+                      metrics: stats.fieldMissionaries,
+                      namesById: namesById,
+                    ),
                   ),
                 ],
               ),
@@ -832,52 +909,70 @@ Future<void> _showMonthStatistics(BuildContext context, WidgetRef ref) async {
   );
 }
 
-Future<void> _showCongregationAnalysis(
-  BuildContext context,
-  WidgetRef ref,
-) async {
-  final db = ref.read(databaseProvider);
-  final analysis = await db.getCongregationAnalysis(
-    congregationId: ref.read(currentCongregationIdProvider),
+void _showMetricDetails(
+  BuildContext context, {
+  required String title,
+  required ReportMetrics metrics,
+  required Map<int, String> namesById,
+}) {
+  _showPersonDetails(
+    context,
+    title: '$title — ${metrics.numberOfReports}',
+    personIds: metrics.personIds,
+    namesById: namesById,
   );
+}
 
-  if (!context.mounted) return;
-  showDialog(
+void _showPersonDetails(
+  BuildContext context, {
+  required String title,
+  required List<int> personIds,
+  required Map<int, String> namesById,
+}) {
+  final names =
+      personIds.map((id) => namesById[id] ?? 'Unknown publisher').toList()
+        ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+  showDialog<void>(
     context: context,
-    builder: (ctx) => AlertDialog(
-      title: const Text('Congregation Analysis'),
+    builder: (detailContext) => AlertDialog(
+      title: Text(title),
       content: SizedBox(
-        width: 400,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _StatCard(
-              icon: Icons.people,
-              title: 'All Active Publishers',
-              value: '${analysis.allActivePublishers}',
-            ),
-            const SizedBox(height: 12),
-            _StatCard(
-              icon: Icons.person_off,
-              title: 'New Inactive Publishers',
-              value: '${analysis.newInactivePublishers}',
-            ),
-            const SizedBox(height: 12),
-            _StatCard(
-              icon: Icons.refresh,
-              title: 'Reactivated Publishers',
-              value: '${analysis.reactivatedPublishers}',
-            ),
-          ],
+        width: 360,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxHeight: 420),
+          child: names.isEmpty
+              ? const Text('No submitted reports in this category.')
+              : ListView.separated(
+                  shrinkWrap: true,
+                  itemCount: names.length,
+                  separatorBuilder: (_, _) => const Divider(height: 1),
+                  itemBuilder: (_, index) => ListTile(
+                    dense: true,
+                    leading: const Icon(Icons.person_outline),
+                    title: Text(names[index]),
+                  ),
+                ),
         ),
       ),
       actions: [
         TextButton(
-          onPressed: () => Navigator.of(ctx).pop(),
+          onPressed: () => Navigator.of(detailContext).pop(),
           child: const Text('Close'),
         ),
       ],
+    ),
+  );
+}
+
+Future<void> _showCongregationAnalysis(
+  BuildContext context,
+  WidgetRef ref,
+) async {
+  await showDialog<void>(
+    context: context,
+    builder: (context) => CongregationAnalysisDialog(
+      serviceYear: ref.read(selectedYearProvider),
+      throughMonth: ref.read(selectedMonthProvider),
     ),
   );
 }
@@ -896,6 +991,7 @@ class _ReportDataTableState extends ConsumerState<_ReportDataTable> {
   // Cache of person names by ID
   final Map<int, String> _personNames = {};
   final Map<int, bool> _personIsActive = {};
+  final Map<int, PioneerType> _personPioneerTypes = {};
   int? _sortColumnIndex;
   bool _sortAscending = true;
 
@@ -916,6 +1012,7 @@ class _ReportDataTableState extends ConsumerState<_ReportDataTable> {
       for (final p in persons) {
         _personNames[p.id] = formatPersonName(p.firstName, p.lastName, order);
         _personIsActive[p.id] = p.isActive;
+        _personPioneerTypes[p.id] = p.pioneerType;
       }
     });
   }
@@ -968,16 +1065,18 @@ class _ReportDataTableState extends ConsumerState<_ReportDataTable> {
 
     return reports.where((report) {
       final name = (_personNames[report.personId] ?? '').toLowerCase();
-      final monthName = DateFormat.MMMM()
-          .format(DateTime(report.year, report.month))
-          .toLowerCase();
+      final monthLabel = formatServiceMonth(
+        report.year,
+        report.month,
+      ).toLowerCase();
       final values = [
         name,
-        monthName,
+        monthLabel,
         '${report.year}',
         report.sharedInMinistry ? 'shared yes true' : 'not shared no false',
         '${report.bibleStudies}',
         '${report.hours}',
+        _pioneerTypeSearchTerms(_personPioneerTypes[report.personId]),
         report.isAuxiliaryPioneer ? 'aux pioneer auxiliary yes true' : '',
         report.note.toLowerCase(),
       ].join(' ');
@@ -992,9 +1091,8 @@ class _ReportDataTableState extends ConsumerState<_ReportDataTable> {
       itemBuilder: (context, index) {
         final report = sorted[index];
         final name = _displayName(report);
-        final monthName = DateFormat.MMMM().format(
-          DateTime(report.year, report.month),
-        );
+        final pioneerType = _personPioneerTypes[report.personId];
+        final monthLabel = formatServiceMonth(report.year, report.month);
 
         return Card(
           key: ValueKey('service-report-card-${report.id}'),
@@ -1007,11 +1105,36 @@ class _ReportDataTableState extends ConsumerState<_ReportDataTable> {
                 Row(
                   children: [
                     Expanded(
-                      child: Text(
-                        name,
-                        style: Theme.of(context).textTheme.titleSmall,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(4),
+                        onTap: () =>
+                            context.push('/persons/edit/${report.personId}'),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 4),
+                          child: Text(
+                            name,
+                            style: Theme.of(context).textTheme.titleSmall
+                                ?.copyWith(
+                                  color: Theme.of(context).colorScheme.primary,
+                                  decoration: TextDecoration.underline,
+                                  decorationColor: Theme.of(
+                                    context,
+                                  ).colorScheme.primary,
+                                ),
+                          ),
+                        ),
                       ),
                     ),
+                    if (pioneerType != null &&
+                        pioneerType != PioneerType.none) ...[
+                      _PioneerTypeIndicator(
+                        key: ValueKey(
+                          'service-report-${report.id}-pioneer-type',
+                        ),
+                        value: pioneerType,
+                      ),
+                      const SizedBox(width: 4),
+                    ],
                     IconButton(
                       icon: const Icon(Icons.delete, size: 18),
                       onPressed: () => _deleteReport(report),
@@ -1019,10 +1142,7 @@ class _ReportDataTableState extends ConsumerState<_ReportDataTable> {
                     ),
                   ],
                 ),
-                Text(
-                  '$monthName ${report.year}',
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
+                Text(monthLabel, style: Theme.of(context).textTheme.bodySmall),
                 const SizedBox(height: 8),
                 Wrap(
                   spacing: 16,
@@ -1168,15 +1288,33 @@ class _ReportDataTableState extends ConsumerState<_ReportDataTable> {
   }
 
   DataRow _buildDataRow(ServiceReport report) {
-    final monthName = DateFormat.MMMM().format(
-      DateTime(report.year, report.month),
-    );
+    final pioneerType = _personPioneerTypes[report.personId];
+    final monthLabel = formatServiceMonth(report.year, report.month);
 
     return DataRow(
       key: ValueKey('service-report-row-${report.id}'),
       cells: [
-        DataCell(Text(_displayName(report))),
-        DataCell(Text('$monthName ${report.year}')),
+        DataCell(
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  _displayName(report),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              if (pioneerType != null && pioneerType != PioneerType.none) ...[
+                const SizedBox(width: 8),
+                _PioneerTypeIndicator(
+                  key: ValueKey('service-report-${report.id}-pioneer-type'),
+                  value: pioneerType,
+                ),
+              ],
+            ],
+          ),
+          onTap: () => context.push('/persons/edit/${report.personId}'),
+        ),
+        DataCell(Text(monthLabel)),
         DataCell(
           Center(
             child: _EditableCheckbox(
@@ -1291,6 +1429,79 @@ class _ReportDataTableState extends ConsumerState<_ReportDataTable> {
       _sortColumnIndex = columnIndex;
       _sortAscending = ascending;
     });
+  }
+}
+
+String _pioneerTypeSearchTerms(PioneerType? type) {
+  return switch (type) {
+    null => '',
+    PioneerType.none => 'publisher pub none',
+    PioneerType.regularPioneer => 'regular pioneer rp',
+    PioneerType.specialPioneer => 'special pioneer sp',
+    PioneerType.fieldMissionary => 'field missionary fm',
+  };
+}
+
+class _PioneerTypeIndicator extends StatelessWidget {
+  final PioneerType value;
+
+  const _PioneerTypeIndicator({super.key, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final (label, icon, background, foreground) = switch (value) {
+      PioneerType.none => (
+        '',
+        Icons.person,
+        colorScheme.surfaceContainerHighest,
+        colorScheme.onSurfaceVariant,
+      ),
+      PioneerType.regularPioneer => (
+        'RP',
+        Icons.star,
+        colorScheme.tertiaryContainer,
+        colorScheme.onTertiaryContainer,
+      ),
+      PioneerType.specialPioneer => (
+        'SP',
+        Icons.workspace_premium,
+        colorScheme.errorContainer,
+        colorScheme.onErrorContainer,
+      ),
+      PioneerType.fieldMissionary => (
+        'FM',
+        Icons.travel_explore,
+        colorScheme.surfaceContainerHighest,
+        colorScheme.onSurfaceVariant,
+      ),
+    };
+    final description = value.displayName;
+
+    return Tooltip(
+      message: '$description — edit from the person record',
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+        decoration: BoxDecoration(
+          color: background,
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 14, color: foreground),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                color: foreground,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 
@@ -1678,12 +1889,14 @@ class _MetricsCard extends StatelessWidget {
   final String title;
   final ReportMetrics metrics;
   final bool showHours;
+  final VoidCallback? onTap;
 
   const _MetricsCard({
     required this.icon,
     required this.title,
     required this.metrics,
     this.showHours = true,
+    this.onTap,
   });
 
   @override
@@ -1691,33 +1904,41 @@ class _MetricsCard extends StatelessWidget {
     return SizedBox(
       width: 180,
       child: Card(
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Icon(icon, size: 22),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      title,
-                      style: Theme.of(context).textTheme.titleSmall,
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(icon, size: 22),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        title,
+                        style: Theme.of(context).textTheme.titleSmall,
+                      ),
                     ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                _metricRow(
+                  context,
+                  'Number of Reports',
+                  '${metrics.numberOfReports}',
+                ),
+                if (showHours)
+                  _metricRow(
+                    context,
+                    'Hours',
+                    metrics.hours.toStringAsFixed(1),
                   ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              _metricRow(
-                context,
-                'Number of Reports',
-                '${metrics.numberOfReports}',
-              ),
-              if (showHours)
-                _metricRow(context, 'Hours', metrics.hours.toStringAsFixed(1)),
-              _metricRow(context, 'Bible Studies', '${metrics.bibleStudies}'),
-            ],
+                _metricRow(context, 'Bible Studies', '${metrics.bibleStudies}'),
+              ],
+            ),
           ),
         ),
       ),
@@ -1730,7 +1951,14 @@ class _MetricsCard extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: Theme.of(context).textTheme.bodySmall),
+          Expanded(
+            child: Text(
+              label,
+              style: Theme.of(context).textTheme.bodySmall,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          const SizedBox(width: 8),
           Text(
             value,
             style: Theme.of(

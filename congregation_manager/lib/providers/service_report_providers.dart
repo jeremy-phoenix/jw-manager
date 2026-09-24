@@ -1,15 +1,30 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:congregation_manager/data/database.dart';
+import 'package:congregation_manager/data/service_year.dart';
 import 'package:congregation_manager/providers/congregation_providers.dart';
 import 'package:congregation_manager/providers/database_provider.dart';
 
-/// Selected year for service reports filter.
+/// Period the service reports screen opens on.
+///
+/// Until the 20th the reports for the current month are still coming in, so
+/// the previous month is shown. The service year has to come from that same
+/// month: on 1 September 2026 the screen shows August, which still belongs to
+/// service year 2026, not to the 2027 one that started that very day.
+({int serviceYear, int month}) defaultServiceReportPeriod([DateTime? date]) {
+  final today = date ?? DateTime.now();
+  final month = today.day <= 20
+      ? DateTime(today.year, today.month - 1)
+      : DateTime(today.year, today.month);
+  return (
+    serviceYear: serviceYearOf(month.year, month.month),
+    month: month.month,
+  );
+}
+
+/// Selected service year for service reports filter.
 class SelectedYearNotifier extends Notifier<int> {
   @override
-  int build() {
-    final now = DateTime.now();
-    return now.month >= 9 ? now.year + 1 : now.year;
-  }
+  int build() => defaultServiceReportPeriod().serviceYear;
 
   void set(int value) => state = value;
 }
@@ -21,15 +36,7 @@ final selectedYearProvider = NotifierProvider<SelectedYearNotifier, int>(
 /// Selected month for service reports filter.
 class SelectedMonthNotifier extends Notifier<int> {
   @override
-  int build() {
-    final now = DateTime.now();
-    // If day <= 20, default to previous month
-    if (now.day <= 20) {
-      final prev = DateTime(now.year, now.month - 1);
-      return prev.month;
-    }
-    return now.month;
-  }
+  int build() => defaultServiceReportPeriod().month;
 
   void set(int value) => state = value;
 }
@@ -115,14 +122,12 @@ final serviceYearsProvider = FutureProvider<List<int>>((ref) async {
   final reports = await db.getServiceReports();
   final years = <int>{};
   for (final report in reports) {
-    // Service year: Sep=next year, Jan-Aug=same year
-    final serviceYear = report.month >= 9 ? report.year + 1 : report.year;
-    years.add(serviceYear);
+    // A report already stores the service year it belongs to, September
+    // included; deriving one again would invent a year with no data in it.
+    years.add(report.year);
   }
-  final now = DateTime.now();
-  final currentServiceYear = now.month >= 9 ? now.year + 1 : now.year;
   years.add(selectedYear);
-  years.add(currentServiceYear);
+  years.add(currentServiceYear());
   final sorted = years.toList()..sort((a, b) => b.compareTo(a));
   return sorted;
 });
