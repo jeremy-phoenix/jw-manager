@@ -7,34 +7,7 @@ import 'package:congregation_manager/providers/congregation_providers.dart';
 import 'package:congregation_manager/providers/sync_providers.dart';
 import 'package:congregation_manager/routing/app_router.dart';
 import 'package:congregation_manager/providers/settings_providers.dart';
-
-ThemeData _buildTheme(Brightness brightness) {
-  final colorScheme = ColorScheme.fromSeed(
-    seedColor: Colors.indigo,
-    brightness: brightness,
-  );
-  final navigationBarColor = colorScheme.surfaceContainerHigh;
-
-  return ThemeData(
-    colorScheme: colorScheme,
-    useMaterial3: true,
-    cardTheme: CardThemeData(
-      clipBehavior: Clip.antiAlias,
-      elevation: 1,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-    ),
-    popupMenuTheme: PopupMenuThemeData(
-      elevation: 3,
-      menuPadding: const EdgeInsets.symmetric(vertical: 4),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      textStyle: TextStyle(color: colorScheme.onSurface, fontSize: 14),
-    ),
-    navigationBarTheme: NavigationBarThemeData(
-      backgroundColor: navigationBarColor,
-      elevation: 2,
-    ),
-  );
-}
+import 'package:congregation_manager/ui/theme/app_theme.dart';
 
 SystemUiOverlayStyle _systemUiOverlayStyle(ColorScheme colorScheme) {
   final isDark = colorScheme.brightness == Brightness.dark;
@@ -43,7 +16,7 @@ SystemUiOverlayStyle _systemUiOverlayStyle(ColorScheme colorScheme) {
     statusBarColor: Colors.transparent,
     statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
     statusBarBrightness: isDark ? Brightness.dark : Brightness.light,
-    systemNavigationBarColor: colorScheme.surfaceContainerHigh,
+    systemNavigationBarColor: colorScheme.surfaceContainer,
     systemNavigationBarDividerColor: Colors.transparent,
     systemNavigationBarIconBrightness: isDark
         ? Brightness.light
@@ -94,15 +67,13 @@ class CongregationManagerApp extends ConsumerWidget {
     });
     final themeMode = ref.watch(themeModeProvider);
     final router = ref.watch(appRouterProvider);
-    final lightTheme = _buildTheme(Brightness.light);
-    final darkTheme = _buildTheme(Brightness.dark);
 
     return MaterialApp.router(
       title: 'Congregation Manager',
       debugShowCheckedModeBanner: false,
       themeMode: themeMode,
-      theme: lightTheme,
-      darkTheme: darkTheme,
+      theme: AppTheme.light(),
+      darkTheme: AppTheme.dark(),
       builder: (context, child) {
         final colorScheme = Theme.of(context).colorScheme;
 

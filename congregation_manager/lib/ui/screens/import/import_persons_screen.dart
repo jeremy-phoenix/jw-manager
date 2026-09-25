@@ -7,6 +7,8 @@ import 'package:congregation_manager/providers/database_provider.dart';
 import 'package:congregation_manager/providers/congregation_providers.dart';
 import 'package:congregation_manager/providers/person_providers.dart';
 import 'package:congregation_manager/services/publisher_record_reader.dart';
+import 'package:congregation_manager/ui/theme/layout.dart';
+import 'package:congregation_manager/ui/theme/status_colors.dart';
 
 enum ImportAction { create, merge, skip }
 
@@ -34,7 +36,8 @@ class _ImportPersonsScreenState extends ConsumerState<ImportPersonsScreen> {
   Future<void> _init() async {
     final db = ref.read(databaseProvider);
     final dbPersons = await db.getAllPersons(
-        congregationId: ref.read(currentCongregationIdProvider));
+      congregationId: ref.read(currentCongregationIdProvider),
+    );
 
     _items = widget.importedPersons.map((imported) {
       final match = _findExactMatch(imported, dbPersons);
@@ -62,26 +65,34 @@ class _ImportPersonsScreenState extends ConsumerState<ImportPersonsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-            'Import Preview (${widget.importedPersons.length} record(s))'),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Import S-21'),
+            Text(
+              '${widget.importedPersons.length} records to review',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ],
+        ),
         actions: [
           FilledButton.icon(
             icon: const Icon(Icons.check),
             label: const Text('Import'),
             onPressed: _loading ? null : _applyImport,
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: AppSpacing.sm),
         ],
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
-          : _buildBody(),
+          : ReadableWidth(maxWidth: AppContentWidth.form, child: _buildBody()),
     );
   }
 
   Widget _buildBody() {
     return ListView.builder(
-      padding: const EdgeInsets.all(16),
+      padding: AppSpacing.page,
       itemCount: _items.length,
       itemBuilder: (context, index) {
         final item = _items[index];
@@ -104,33 +115,37 @@ class _ImportPersonsScreenState extends ConsumerState<ImportPersonsScreen> {
                       Chip(
                         label: const Text('Exists'),
                         avatar: const Icon(Icons.person, size: 16),
-                        backgroundColor: Colors.orange[100],
+                        backgroundColor: StatusColors.of(
+                          context,
+                        ).warningContainer,
                       ),
-                    const SizedBox(width: 8),
-                    SegmentedButton<ImportAction>(
-                      segments: const [
-                        ButtonSegment(
-                          value: ImportAction.create,
-                          label: Text('Create'),
-                          icon: Icon(Icons.add),
-                        ),
-                        ButtonSegment(
-                          value: ImportAction.merge,
-                          label: Text('Merge'),
-                          icon: Icon(Icons.merge),
-                        ),
-                        ButtonSegment(
-                          value: ImportAction.skip,
-                          label: Text('Skip'),
-                          icon: Icon(Icons.skip_next),
-                        ),
-                      ],
-                      selected: {item.action},
-                      onSelectionChanged: (v) {
-                        setState(() => item.action = v.first);
-                      },
+                  ],
+                ),
+                const SizedBox(height: 12),
+                SegmentedButton<ImportAction>(
+                  direction:
+                      MediaQuery.sizeOf(context).width < 360 ||
+                          MediaQuery.textScalerOf(context).scale(14) > 18
+                      ? Axis.vertical
+                      : Axis.horizontal,
+                  segments: const [
+                    ButtonSegment(
+                      value: ImportAction.create,
+                      label: Text('Create'),
+                    ),
+                    ButtonSegment(
+                      value: ImportAction.merge,
+                      label: Text('Merge'),
+                    ),
+                    ButtonSegment(
+                      value: ImportAction.skip,
+                      label: Text('Skip'),
                     ),
                   ],
+                  selected: {item.action},
+                  onSelectionChanged: (v) {
+                    setState(() => item.action = v.first);
+                  },
                 ),
                 const SizedBox(height: 8),
                 Wrap(
@@ -138,26 +153,36 @@ class _ImportPersonsScreenState extends ConsumerState<ImportPersonsScreen> {
                   runSpacing: 4,
                   children: [
                     if (item.imported.gender != Gender.unknown)
-                      _infoChip(Icons.person,
-                          item.imported.gender.displayName),
+                      _infoChip(Icons.person, item.imported.gender.displayName),
                     if (item.imported.hopeClass != HopeClass.unknown)
-                      _infoChip(Icons.church,
-                          item.imported.hopeClass.displayName),
-                    if (item.imported.congregationRole !=
-                        CongregationRole.none)
-                      _infoChip(Icons.badge,
-                          item.imported.congregationRole.displayName),
+                      _infoChip(
+                        Icons.church,
+                        item.imported.hopeClass.displayName,
+                      ),
+                    if (item.imported.congregationRole != CongregationRole.none)
+                      _infoChip(
+                        Icons.badge,
+                        item.imported.congregationRole.displayName,
+                      ),
                     if (item.imported.pioneerType != PioneerType.none)
-                      _infoChip(Icons.hiking,
-                          item.imported.pioneerType.displayName),
+                      _infoChip(
+                        Icons.hiking,
+                        item.imported.pioneerType.displayName,
+                      ),
                     if (item.imported.birthDate != null)
-                      _infoChip(Icons.cake,
-                          'DOB: ${_formatDate(item.imported.birthDate!)}'),
+                      _infoChip(
+                        Icons.cake,
+                        'DOB: ${_formatDate(item.imported.birthDate!)}',
+                      ),
                     if (item.imported.baptismDate != null)
-                      _infoChip(Icons.water,
-                          'Baptism: ${_formatDate(item.imported.baptismDate!)}'),
-                    _infoChip(Icons.assignment,
-                        '${item.imported.serviceReports.length} reports'),
+                      _infoChip(
+                        Icons.water,
+                        'Baptism: ${_formatDate(item.imported.baptismDate!)}',
+                      ),
+                    _infoChip(
+                      Icons.assignment,
+                      '${item.imported.serviceReports.length} reports',
+                    ),
                   ],
                 ),
               ],
@@ -171,7 +196,7 @@ class _ImportPersonsScreenState extends ConsumerState<ImportPersonsScreen> {
   Widget _infoChip(IconData icon, String label) {
     return Chip(
       avatar: Icon(icon, size: 14),
-      label: Text(label, style: const TextStyle(fontSize: 12)),
+      label: Text(label, style: TextStyle(fontSize: 12)),
       visualDensity: VisualDensity.compact,
     );
   }
@@ -194,36 +219,8 @@ class _ImportPersonsScreenState extends ConsumerState<ImportPersonsScreen> {
 
           case ImportAction.create:
             final congId = ref.read(currentCongregationIdProvider);
-            final personId = await db.insertPerson(PersonsCompanion.insert(
-              firstName: Value(item.imported.firstName),
-              lastName: Value(item.imported.lastName),
-              address: Value(item.imported.address ?? ''),
-              birthDate: Value(item.imported.birthDate),
-              baptismDate: Value(item.imported.baptismDate),
-              gender: Value(item.imported.gender),
-              hopeClass: Value(item.imported.hopeClass),
-              congregationRole: Value(item.imported.congregationRole),
-              pioneerType: Value(item.imported.pioneerType),
-              congregationId: Value(congId),
-            ));
-
-            if (item.imported.phoneNumber != null) {
-              await db.insertPhoneNumber(PhoneNumbersCompanion.insert(
-                number: Value(item.imported.phoneNumber!),
-                phoneType: Value(PhoneType.mobile),
-                isPrimary: Value(true),
-                personId: personId,
-              ));
-            }
-
-            await _importServiceReports(db, personId, item.imported);
-            created++;
-
-          case ImportAction.merge:
-            final personId = item.matchedPerson?.id;
-            if (personId == null) {
-              // No match found, create instead
-              final newId = await db.insertPerson(PersonsCompanion.insert(
+            final personId = await db.insertPerson(
+              PersonsCompanion.insert(
                 firstName: Value(item.imported.firstName),
                 lastName: Value(item.imported.lastName),
                 address: Value(item.imported.address ?? ''),
@@ -233,8 +230,44 @@ class _ImportPersonsScreenState extends ConsumerState<ImportPersonsScreen> {
                 hopeClass: Value(item.imported.hopeClass),
                 congregationRole: Value(item.imported.congregationRole),
                 pioneerType: Value(item.imported.pioneerType),
-                congregationId: Value(ref.read(currentCongregationIdProvider)),
-              ));
+                congregationId: Value(congId),
+              ),
+            );
+
+            if (item.imported.phoneNumber != null) {
+              await db.insertPhoneNumber(
+                PhoneNumbersCompanion.insert(
+                  number: Value(item.imported.phoneNumber!),
+                  phoneType: Value(PhoneType.mobile),
+                  isPrimary: Value(true),
+                  personId: personId,
+                ),
+              );
+            }
+
+            await _importServiceReports(db, personId, item.imported);
+            created++;
+
+          case ImportAction.merge:
+            final personId = item.matchedPerson?.id;
+            if (personId == null) {
+              // No match found, create instead
+              final newId = await db.insertPerson(
+                PersonsCompanion.insert(
+                  firstName: Value(item.imported.firstName),
+                  lastName: Value(item.imported.lastName),
+                  address: Value(item.imported.address ?? ''),
+                  birthDate: Value(item.imported.birthDate),
+                  baptismDate: Value(item.imported.baptismDate),
+                  gender: Value(item.imported.gender),
+                  hopeClass: Value(item.imported.hopeClass),
+                  congregationRole: Value(item.imported.congregationRole),
+                  pioneerType: Value(item.imported.pioneerType),
+                  congregationId: Value(
+                    ref.read(currentCongregationIdProvider),
+                  ),
+                ),
+              );
               await _importServiceReports(db, newId, item.imported);
               created++;
               continue;
@@ -242,34 +275,36 @@ class _ImportPersonsScreenState extends ConsumerState<ImportPersonsScreen> {
 
             // Merge: update fields that are set in the imported data
             final existing = item.matchedPerson!;
-            await db.updatePerson(PersonsCompanion(
-              id: Value(personId),
-              firstName: Value(existing.firstName),
-              lastName: Value(existing.lastName),
-              address: item.imported.address != null
-                  ? Value(item.imported.address!)
-                  : Value(existing.address),
-              birthDate: item.imported.birthDate != null
-                  ? Value(item.imported.birthDate)
-                  : Value(existing.birthDate),
-              baptismDate: item.imported.baptismDate != null
-                  ? Value(item.imported.baptismDate)
-                  : Value(existing.baptismDate),
-              gender: item.imported.gender != Gender.unknown
-                  ? Value(item.imported.gender)
-                  : Value(existing.gender),
-              hopeClass: item.imported.hopeClass != HopeClass.unknown
-                  ? Value(item.imported.hopeClass)
-                  : Value(existing.hopeClass),
-              congregationRole:
-                  item.imported.congregationRole != CongregationRole.none
-                      ? Value(item.imported.congregationRole)
-                      : Value(existing.congregationRole),
-              pioneerType: item.imported.pioneerType != PioneerType.none
-                  ? Value(item.imported.pioneerType)
-                  : Value(existing.pioneerType),
-              email: Value(existing.email),
-            ));
+            await db.updatePerson(
+              PersonsCompanion(
+                id: Value(personId),
+                firstName: Value(existing.firstName),
+                lastName: Value(existing.lastName),
+                address: item.imported.address != null
+                    ? Value(item.imported.address!)
+                    : Value(existing.address),
+                birthDate: item.imported.birthDate != null
+                    ? Value(item.imported.birthDate)
+                    : Value(existing.birthDate),
+                baptismDate: item.imported.baptismDate != null
+                    ? Value(item.imported.baptismDate)
+                    : Value(existing.baptismDate),
+                gender: item.imported.gender != Gender.unknown
+                    ? Value(item.imported.gender)
+                    : Value(existing.gender),
+                hopeClass: item.imported.hopeClass != HopeClass.unknown
+                    ? Value(item.imported.hopeClass)
+                    : Value(existing.hopeClass),
+                congregationRole:
+                    item.imported.congregationRole != CongregationRole.none
+                    ? Value(item.imported.congregationRole)
+                    : Value(existing.congregationRole),
+                pioneerType: item.imported.pioneerType != PioneerType.none
+                    ? Value(item.imported.pioneerType)
+                    : Value(existing.pioneerType),
+                email: Value(existing.email),
+              ),
+            );
 
             await _importServiceReports(db, personId, item.imported);
             merged++;
@@ -281,22 +316,27 @@ class _ImportPersonsScreenState extends ConsumerState<ImportPersonsScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-              content: Text(
-                  'Import complete: $created created, $merged merged, $skipped skipped.')),
+            content: Text(
+              'Import complete: $created created, $merged merged, $skipped skipped.',
+            ),
+          ),
         );
         Navigator.of(context).pop();
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Import error: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Import error: $e')));
       }
     }
   }
 
   Future<void> _importServiceReports(
-      AppDatabase db, int personId, ImportedPerson imported) async {
+    AppDatabase db,
+    int personId,
+    ImportedPerson imported,
+  ) async {
     for (final report in imported.serviceReports) {
       // Only import reports that have some data
       if (!report.sharedInMinistry &&
@@ -307,16 +347,18 @@ class _ImportPersonsScreenState extends ConsumerState<ImportPersonsScreen> {
         continue;
       }
 
-      await db.upsertServiceReport(ServiceReportsCompanion.insert(
-        personId: personId,
-        year: report.year,
-        month: report.month,
-        sharedInMinistry: Value(report.sharedInMinistry),
-        bibleStudies: Value(report.bibleStudies),
-        isAuxiliaryPioneer: Value(report.isAuxiliaryPioneer),
-        hours: Value(report.hours ?? 0),
-        note: Value(report.note ?? ''),
-      ));
+      await db.upsertServiceReport(
+        ServiceReportsCompanion.insert(
+          personId: personId,
+          year: report.year,
+          month: report.month,
+          sharedInMinistry: Value(report.sharedInMinistry),
+          bibleStudies: Value(report.bibleStudies),
+          isAuxiliaryPioneer: Value(report.isAuxiliaryPioneer),
+          hours: Value(report.hours ?? 0),
+          note: Value(report.note ?? ''),
+        ),
+      );
     }
   }
 }

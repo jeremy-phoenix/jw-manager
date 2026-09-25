@@ -1,12 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:data_table_2/data_table_2.dart';
 import 'package:congregation_manager/data/database.dart';
 import 'package:congregation_manager/data/enums.dart';
 import 'package:congregation_manager/providers/group_providers.dart';
 import 'package:congregation_manager/providers/person_providers.dart';
 import 'package:congregation_manager/providers/settings_providers.dart';
 import 'package:congregation_manager/ui/widgets/sticky_data_table.dart';
+import 'package:congregation_manager/ui/theme/layout.dart';
+import 'package:congregation_manager/ui/widgets/empty_state.dart';
+import 'package:congregation_manager/ui/widgets/publisher_status.dart';
+import 'package:congregation_manager/ui/widgets/toolbar_actions.dart';
 
 class GroupMembersScreen extends ConsumerWidget {
   final int? groupId;
@@ -30,8 +35,9 @@ class GroupMembersScreen extends ConsumerWidget {
         appBar: AppBar(
           title: Text(group.name),
           actions: [
-            IconButton(
-              icon: const Icon(Icons.edit),
+            ToolbarAction(
+              icon: Icons.edit,
+              label: 'Edit Group',
               tooltip: 'Edit Group',
               onPressed: () => context.push('/groups/edit/${group.id}'),
             ),
@@ -46,17 +52,50 @@ class GroupMembersScreen extends ConsumerWidget {
               nameOrder: nameOrder,
             ),
             loading: () => const Center(child: CircularProgressIndicator()),
-            error: (error, _) => Center(child: Text('Error: $error')),
+            error: (error, _) => EmptyState.error(
+              title: 'Could not load group publishers',
+              error: error,
+              action: TextButton(
+                onPressed: () {
+                  ref.invalidate(fieldServiceGroupProvider(id));
+                  ref.invalidate(groupMembersProvider(id));
+                  ref.invalidate(personsProvider);
+                },
+                child: const Text('Retry'),
+              ),
+            ),
           ),
           loading: () => const Center(child: CircularProgressIndicator()),
-          error: (error, _) => Center(child: Text('Error: $error')),
+          error: (error, _) => EmptyState.error(
+            title: 'Could not load group publishers',
+            error: error,
+            action: TextButton(
+              onPressed: () {
+                ref.invalidate(fieldServiceGroupProvider(id));
+                ref.invalidate(groupMembersProvider(id));
+                ref.invalidate(personsProvider);
+              },
+              child: const Text('Retry'),
+            ),
+          ),
         ),
       ),
       loading: () =>
           const Scaffold(body: Center(child: CircularProgressIndicator())),
       error: (error, _) => Scaffold(
         appBar: AppBar(title: const Text('Group Publishers')),
-        body: Center(child: Text('Error: $error')),
+        body: EmptyState.error(
+          title: 'Could not load group publishers',
+          error: error,
+          action: TextButton(
+            onPressed: () {
+              ref.invalidate(fieldServiceGroupProvider(id));
+              ref.invalidate(groupMembersProvider(id));
+              ref.invalidate(personsProvider);
+            },
+            child: const Text('Retry'),
+          ),
+        ),
       ),
     );
   }
@@ -80,7 +119,7 @@ class _GroupMembersContent extends StatelessWidget {
     final personsById = {for (final person in allPersons) person.id: person};
     final overseerName = _personName(personsById[group.groupOverseerId]);
     final assistantName = _personName(personsById[group.assistantId]);
-    final isWide = MediaQuery.of(context).size.width >= 700;
+    final isWide = MediaQuery.of(context).size.width >= AppBreakpoints.medium;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -120,7 +159,16 @@ class _GroupMembersContent extends StatelessWidget {
         const Divider(height: 1),
         Expanded(
           child: members.isEmpty
-              ? const Center(child: Text('No publishers assigned.'))
+              ? EmptyState(
+                  icon: Icons.group_outlined,
+                  title: 'No publishers assigned',
+                  message:
+                      "Assign a field service group from a publisher's profile.",
+                  action: TextButton(
+                    onPressed: () => context.go('/persons'),
+                    child: const Text('View Publishers'),
+                  ),
+                )
               : isWide
               ? _GroupMembersTable(members: members, nameOrder: nameOrder)
               : _GroupMembersList(members: members, nameOrder: nameOrder),
@@ -150,25 +198,19 @@ class _GroupMembersList extends StatelessWidget {
         final person = members[index];
         final badges = _publisherBadges(context, person);
 
-        return Card(
-          margin: const EdgeInsets.symmetric(vertical: 4),
-          child: ListTile(
-            leading: Icon(
-              person.isActive ? Icons.check_circle : Icons.cancel,
-              color: person.isActive ? Colors.green : Colors.red,
-            ),
-            title: Text(
-              formatPersonName(person.firstName, person.lastName, nameOrder),
-            ),
-            subtitle: badges.isEmpty
-                ? null
-                : Padding(
-                    padding: const EdgeInsets.only(top: 6),
-                    child: Wrap(spacing: 6, runSpacing: 6, children: badges),
-                  ),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => context.push('/persons/edit/${person.id}'),
+        return ListTile(
+          leading: ActiveStatusIcon(isActive: person.isActive),
+          title: Text(
+            formatPersonName(person.firstName, person.lastName, nameOrder),
           ),
+          subtitle: badges.isEmpty
+              ? null
+              : Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Wrap(spacing: 6, runSpacing: 6, children: badges),
+                ),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => context.push('/persons/edit/${person.id}'),
         );
       },
     );
@@ -184,21 +226,23 @@ class _GroupMembersTable extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return StickyDataTable(
-      minWidth: 720,
+      minWidth: 850,
+      columnSpacing: 16,
+      horizontalMargin: 16,
       columns: [
-        DataColumn(
+        DataColumn2(
           label: Text(
             nameOrder == NameOrder.lastFirst ? 'Last Name' : 'First Name',
           ),
         ),
-        DataColumn(
+        DataColumn2(
           label: Text(
             nameOrder == NameOrder.lastFirst ? 'First Name' : 'Last Name',
           ),
         ),
-        const DataColumn(label: Text('Role')),
-        const DataColumn(label: Text('Pioneer')),
-        const DataColumn(label: Text('Active')),
+        const DataColumn2(label: Text('Role'), fixedWidth: 180),
+        const DataColumn2(label: Text('Pioneer'), fixedWidth: 180),
+        const DataColumn2(label: Text('Active'), fixedWidth: 72),
       ],
       rows: members.map((person) {
         return DataRow(
@@ -222,13 +266,7 @@ class _GroupMembersTable extends StatelessWidget {
             ),
             DataCell(_roleBadge(context, person.congregationRole)),
             DataCell(_pioneerBadge(context, person.pioneerType)),
-            DataCell(
-              Icon(
-                person.isActive ? Icons.check_circle : Icons.cancel,
-                color: person.isActive ? Colors.green : Colors.red,
-                size: 18,
-              ),
-            ),
+            DataCell(ActiveStatusIcon(isActive: person.isActive)),
           ],
         );
       }).toList(),
@@ -308,12 +346,22 @@ class _InfoChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    return Chip(
-      avatar: Icon(icon, size: 18),
-      label: Text(label),
-      backgroundColor: colorScheme.surfaceContainerHighest,
-      side: BorderSide.none,
-      visualDensity: VisualDensity.compact,
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 18),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(label, style: Theme.of(context).textTheme.labelMedium),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -333,26 +381,33 @@ class _PublisherBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      constraints: const BoxConstraints(minHeight: 24),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: backgroundColor,
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 14, color: foregroundColor),
-          const SizedBox(width: 4),
-          Text(
-            label,
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: foregroundColor,
-              fontWeight: FontWeight.w700,
+    return Tooltip(
+      message: label,
+      child: Container(
+        constraints: const BoxConstraints(minHeight: 24),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: backgroundColor,
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 14, color: foregroundColor),
+            const SizedBox(width: 4),
+            Flexible(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: foregroundColor,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

@@ -30,7 +30,6 @@ class CongregationChangeNotifier extends ChangeNotifier {
 final _congChangeNotifier = CongregationChangeNotifier();
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
-final _shellNavigatorKey = GlobalKey<NavigatorState>();
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   // Seed with current value — ref.listen only fires on changes, not the initial value
@@ -58,71 +57,92 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) => const WelcomeScreen(),
       ),
-      ShellRoute(
-        navigatorKey: _shellNavigatorKey,
-        builder: (context, state, child) => AppShell(child: child),
-        routes: [
-          GoRoute(
-            path: '/home',
-            pageBuilder: (context, state) =>
-                const NoTransitionPage(child: HomeScreen()),
-          ),
-          GoRoute(
-            path: '/persons',
-            pageBuilder: (context, state) =>
-                const NoTransitionPage(child: PersonListScreen()),
-          ),
-          GoRoute(
-            path: '/persons/archive',
-            pageBuilder: (context, state) => const NoTransitionPage(
-              child: PersonRecordsScreen(view: PersonRecordsView.archive),
+      StatefulShellRoute(
+        builder: (context, state, navigationShell) =>
+            AppShell(navigationShell: navigationShell),
+        navigatorContainerBuilder: (context, navigationShell, children) =>
+            ShellBranchContainer(
+              currentIndex: navigationShell.currentIndex,
+              children: children,
             ),
+        branches: [
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/home',
+                pageBuilder: (context, state) =>
+                    const NoTransitionPage(child: HomeScreen()),
+              ),
+            ],
           ),
-          GoRoute(
-            path: '/persons/trash',
-            pageBuilder: (context, state) => const NoTransitionPage(
-              child: PersonRecordsScreen(view: PersonRecordsView.trash),
-            ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/persons',
+                pageBuilder: (context, state) =>
+                    const NoTransitionPage(child: PersonListScreen()),
+              ),
+              GoRoute(
+                path: '/persons/archive',
+                pageBuilder: (context, state) => const NoTransitionPage(
+                  child: PersonRecordsScreen(view: PersonRecordsView.archive),
+                ),
+              ),
+              GoRoute(
+                path: '/persons/trash',
+                pageBuilder: (context, state) => const NoTransitionPage(
+                  child: PersonRecordsScreen(view: PersonRecordsView.trash),
+                ),
+              ),
+            ],
           ),
-          GoRoute(
-            path: '/groups',
-            pageBuilder: (context, state) =>
-                const NoTransitionPage(child: GroupListScreen()),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/groups',
+                pageBuilder: (context, state) =>
+                    const NoTransitionPage(child: GroupListScreen()),
+              ),
+            ],
           ),
-          GoRoute(
-            path: '/reports',
-            pageBuilder: (context, state) =>
-                const NoTransitionPage(child: ServiceReportListScreen()),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/reports',
+                pageBuilder: (context, state) =>
+                    const NoTransitionPage(child: ServiceReportListScreen()),
+              ),
+            ],
           ),
-          GoRoute(
-            path: '/settings',
-            pageBuilder: (context, state) =>
-                const NoTransitionPage(child: SettingsScreen()),
-          ),
-          GoRoute(
-            path: '/settings/appearance',
-            parentNavigatorKey: _shellNavigatorKey,
-            builder: (context, state) => const AppearanceSettingsScreen(),
-          ),
-          GoRoute(
-            path: '/settings/data',
-            parentNavigatorKey: _shellNavigatorKey,
-            builder: (context, state) => const DataManagementSettingsScreen(),
-          ),
-          GoRoute(
-            path: '/settings/sync',
-            parentNavigatorKey: _shellNavigatorKey,
-            builder: (context, state) => const OnlineSyncSettingsScreen(),
-          ),
-          GoRoute(
-            path: '/settings/congregations',
-            parentNavigatorKey: _shellNavigatorKey,
-            builder: (context, state) => const CongregationSettingsScreen(),
-          ),
-          GoRoute(
-            path: '/settings/about',
-            parentNavigatorKey: _shellNavigatorKey,
-            builder: (context, state) => const AboutSettingsScreen(),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/settings',
+                pageBuilder: (context, state) =>
+                    const NoTransitionPage(child: SettingsScreen()),
+              ),
+              GoRoute(
+                path: '/settings/appearance',
+                builder: (context, state) => const AppearanceSettingsScreen(),
+              ),
+              GoRoute(
+                path: '/settings/data',
+                builder: (context, state) =>
+                    const DataManagementSettingsScreen(),
+              ),
+              GoRoute(
+                path: '/settings/sync',
+                builder: (context, state) => const OnlineSyncSettingsScreen(),
+              ),
+              GoRoute(
+                path: '/settings/congregations',
+                builder: (context, state) => const CongregationSettingsScreen(),
+              ),
+              GoRoute(
+                path: '/settings/about',
+                builder: (context, state) => const AboutSettingsScreen(),
+              ),
+            ],
           ),
         ],
       ),

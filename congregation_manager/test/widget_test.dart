@@ -8,6 +8,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:congregation_manager/main.dart';
 import 'package:congregation_manager/ui/dialogs/export_records_dialog.dart';
@@ -27,9 +28,11 @@ void main() {
   testWidgets('Settings hub renders without loading async sections', (
     WidgetTester tester,
   ) async {
+    SharedPreferences.setMockInitialValues({});
     await tester.pumpWidget(
       const ProviderScope(child: MaterialApp(home: SettingsScreen())),
     );
+    await tester.pumpAndSettle();
 
     expect(find.text('Congregations'), findsOneWidget);
     expect(find.byType(CircularProgressIndicator), findsNothing);

@@ -101,6 +101,8 @@ public static class ServerSetup
 
         app.UseMiddleware<SecurityHeadersMiddleware>();
         app.UseRateLimiter();
+        app.UseDefaultFiles();
+        app.UseStaticFiles();
         return app;
     }
 

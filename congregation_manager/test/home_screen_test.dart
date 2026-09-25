@@ -68,11 +68,11 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(tester.takeException(), isNull);
-      expect(find.text('Congregation Persons'), findsOneWidget);
+      expect(find.text('Publishers'), findsOneWidget);
       expect(find.text('Pioneers'), findsOneWidget);
       expect(find.text('Unassigned'), findsOneWidget);
       expect(find.text('Quick Actions'), findsOneWidget);
-      expect(find.text('Add Person'), findsOneWidget);
+      expect(find.text('Add Publisher'), findsOneWidget);
       expect(find.text('Service Reports'), findsOneWidget);
       expect(find.text('Manage Groups'), findsOneWidget);
       expect(find.text('Baptism Date Overview'), findsOneWidget);

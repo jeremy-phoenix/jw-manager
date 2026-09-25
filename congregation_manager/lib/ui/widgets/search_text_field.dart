@@ -5,6 +5,7 @@ class SearchTextField extends StatefulWidget {
   final String hintText;
   final ValueChanged<String> onChanged;
   final VoidCallback onClear;
+  final FocusNode? focusNode;
 
   const SearchTextField({
     super.key,
@@ -12,6 +13,7 @@ class SearchTextField extends StatefulWidget {
     required this.hintText,
     required this.onChanged,
     required this.onClear,
+    this.focusNode,
   });
 
   @override
@@ -48,10 +50,11 @@ class _SearchTextFieldState extends State<SearchTextField> {
   Widget build(BuildContext context) {
     return TextField(
       controller: _controller,
+      focusNode: widget.focusNode,
+      textAlignVertical: TextAlignVertical.center,
       decoration: InputDecoration(
         hintText: widget.hintText,
         prefixIcon: const Icon(Icons.search),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
         isDense: true,
         suffixIcon: widget.query.isEmpty
             ? null

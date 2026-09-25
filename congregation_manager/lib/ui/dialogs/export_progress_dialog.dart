@@ -15,6 +15,7 @@ class ExportProgressDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
+      scrollable: true,
       title: Text(title),
       content: SizedBox(
         width: 360,

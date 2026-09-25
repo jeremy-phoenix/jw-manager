@@ -113,6 +113,26 @@ void main() {
     expect(await tester.runAsync(db.getPendingSyncOperationCount), 0);
   });
 
+  testWidgets(
+    'closing device rename keeps the controller alive during the route animation',
+    (tester) async {
+      await pumpCard(tester);
+      await createVault(tester);
+      await tester.tap(find.text('Devices'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Rename this device'));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Device name'),
+        'Updated laptop',
+      );
+      await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      expect(find.text('Devices'), findsWidgets);
+    },
+  );
+
   testWidgets('an invite is shown as a QR code and text', (tester) async {
     await pumpCard(tester);
     await createVault(tester);

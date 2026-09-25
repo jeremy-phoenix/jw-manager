@@ -8,6 +8,8 @@ import 'package:congregation_manager/providers/person_providers.dart';
 import 'package:congregation_manager/providers/settings_providers.dart';
 import 'package:congregation_manager/ui/widgets/app_popup_menu_item.dart';
 import 'package:congregation_manager/ui/widgets/search_text_field.dart';
+import 'package:congregation_manager/ui/theme/layout.dart';
+import 'package:congregation_manager/ui/widgets/empty_state.dart';
 
 enum PersonRecordsView { archive, trash }
 
@@ -66,48 +68,71 @@ class _PersonRecordsScreenState extends ConsumerState<PersonRecordsScreen> {
             ),
         ],
       ),
-      body: Column(
-        children: [
-          _RecordsInfoBanner(isArchive: _isArchive),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-            child: SearchTextField(
-              query: _searchQuery,
-              hintText: _isArchive
-                  ? 'Search archived publishers...'
-                  : 'Search Trash...',
-              onChanged: (value) => setState(() => _searchQuery = value),
-              onClear: () => setState(() => _searchQuery = ''),
+      body: ReadableWidth(
+        child: Column(
+          children: [
+            _RecordsInfoBanner(isArchive: _isArchive),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+              child: SearchTextField(
+                query: _searchQuery,
+                hintText: _isArchive
+                    ? 'Search archived publishers...'
+                    : 'Search Trash...',
+                onChanged: (value) => setState(() => _searchQuery = value),
+                onClear: () => setState(() => _searchQuery = ''),
+              ),
             ),
-          ),
-          Expanded(
-            child: personsAsync.when(
-              data: (persons) {
-                final filtered = _filter(persons);
-                if (filtered.isEmpty) {
-                  return _EmptyRecordsView(
-                    isArchive: _isArchive,
-                    hasSearch: _searchQuery.trim().isNotEmpty,
+            Expanded(
+              child: personsAsync.when(
+                data: (persons) {
+                  final filtered = _filter(persons);
+                  if (filtered.isEmpty) {
+                    return EmptyState(
+                      icon: _searchQuery.isNotEmpty
+                          ? Icons.search_off
+                          : _isArchive
+                          ? Icons.inventory_2_outlined
+                          : Icons.delete_outline,
+                      title: _searchQuery.isNotEmpty
+                          ? 'No matching publishers found'
+                          : _isArchive
+                          ? 'No archived publishers'
+                          : 'Trash is empty',
+                      action: _searchQuery.isNotEmpty
+                          ? TextButton(
+                              onPressed: () =>
+                                  setState(() => _searchQuery = ''),
+                              child: const Text('Clear search'),
+                            )
+                          : null,
+                    );
+                  }
+                  return ListView.separated(
+                    padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
+                    itemCount: filtered.length,
+                    separatorBuilder: (_, _) => const SizedBox(height: 4),
+                    itemBuilder: (context, index) =>
+                        _buildPersonCard(context, filtered[index]),
                   );
-                }
-                return ListView.separated(
-                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
-                  itemCount: filtered.length,
-                  separatorBuilder: (_, _) => const SizedBox(height: 4),
-                  itemBuilder: (context, index) =>
-                      _buildPersonCard(context, filtered[index]),
-                );
-              },
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (error, _) => Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Text('Unable to load publisher records: $error'),
+                },
+                loading: () => const Center(child: CircularProgressIndicator()),
+                error: (error, _) => EmptyState.error(
+                  title: 'Could not load publisher records',
+                  error: error,
+                  action: TextButton(
+                    onPressed: () => ref.invalidate(
+                      _isArchive
+                          ? archivedPersonsProvider
+                          : trashedPersonsProvider,
+                    ),
+                    child: const Text('Retry'),
+                  ),
                 ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -327,6 +352,7 @@ class _PersonRecordsScreenState extends ConsumerState<PersonRecordsScreen> {
     return await showDialog<bool>(
           context: context,
           builder: (dialogContext) => AlertDialog(
+            scrollable: true,
             icon: Icon(
               Icons.warning_amber_rounded,
               color: Theme.of(dialogContext).colorScheme.error,
@@ -341,6 +367,7 @@ class _PersonRecordsScreenState extends ConsumerState<PersonRecordsScreen> {
               FilledButton(
                 style: FilledButton.styleFrom(
                   backgroundColor: Theme.of(dialogContext).colorScheme.error,
+                  foregroundColor: Theme.of(dialogContext).colorScheme.onError,
                 ),
                 onPressed: () => Navigator.of(dialogContext).pop(true),
                 child: const Text('Delete Permanently'),
@@ -376,8 +403,12 @@ class _RecordsInfoBanner extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
     return Container(
       width: double.infinity,
-      color: colorScheme.surfaceContainerHighest,
+      margin: const EdgeInsets.fromLTRB(12, 8, 12, 0),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(16),
+      ),
       child: Row(
         children: [
           Icon(
@@ -395,45 +426,6 @@ class _RecordsInfoBanner extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _EmptyRecordsView extends StatelessWidget {
-  const _EmptyRecordsView({required this.isArchive, required this.hasSearch});
-
-  final bool isArchive;
-  final bool hasSearch;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              hasSearch
-                  ? Icons.search_off
-                  : isArchive
-                  ? Icons.inventory_2_outlined
-                  : Icons.delete_outline,
-              size: 48,
-              color: Theme.of(context).colorScheme.outline,
-            ),
-            const SizedBox(height: 12),
-            Text(
-              hasSearch
-                  ? 'No matching publishers found.'
-                  : isArchive
-                  ? 'No archived publishers.'
-                  : 'Trash is empty.',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-          ],
-        ),
       ),
     );
   }

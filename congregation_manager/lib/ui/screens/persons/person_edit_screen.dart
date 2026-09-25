@@ -2,6 +2,7 @@ import 'package:drift/drift.dart' as drift;
 import 'package:data_table_2/data_table_2.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:congregation_manager/data/database.dart';
 import 'package:congregation_manager/data/enums.dart';
@@ -11,6 +12,10 @@ import 'package:congregation_manager/providers/database_provider.dart';
 import 'package:congregation_manager/providers/person_providers.dart';
 import 'package:congregation_manager/providers/group_providers.dart';
 import 'package:congregation_manager/ui/widgets/sticky_data_table.dart';
+import 'package:congregation_manager/ui/widgets/empty_state.dart';
+import 'package:congregation_manager/ui/theme/layout.dart';
+import 'package:congregation_manager/ui/widgets/screen_shortcuts.dart';
+import 'package:congregation_manager/ui/widgets/section_label.dart';
 
 class PersonEditScreen extends ConsumerStatefulWidget {
   final int? personId;
@@ -166,45 +171,64 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen>
   Widget build(BuildContext context) {
     final isNew = widget.personId == null;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(isNew ? 'New Publisher' : 'Edit Publisher'),
-        actions: [
-          FilledButton.icon(
-            icon: const Icon(Icons.save),
-            label: const Text('Save'),
-            onPressed: _save,
-          ),
-          const SizedBox(width: 8),
-        ],
-        bottom: TabBar(
-          controller: _tabController,
-          isScrollable: true,
-          tabAlignment: TabAlignment.start,
-          tabs: const [
-            Tab(text: 'Basic Info'),
-            Tab(text: 'Phone Numbers'),
-            Tab(text: 'Emergency Contacts'),
-            Tab(text: 'Pioneer Periods'),
-            Tab(text: 'Field Service Reports'),
-          ],
-        ),
-      ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : Form(
-              key: _formKey,
-              child: TabBarView(
-                controller: _tabController,
-                children: [
-                  _buildBasicInfoTab(),
-                  _buildPhoneNumbersTab(),
-                  _buildEmergencyContactsTab(),
-                  _buildPioneerPeriodsTab(),
-                  _buildFieldServiceReportsTab(),
-                ],
-              ),
+    return ScreenShortcuts(
+      bindings: {
+        commandKey(LogicalKeyboardKey.keyS): ScreenShortcut(() {
+          if (!_isLoading) _save();
+        }, whileEditing: true),
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(isNew ? 'New Publisher' : 'Edit Publisher'),
+          actions: [
+            FilledButton.icon(
+              icon: const Icon(Icons.save),
+              label: const Text('Save'),
+              onPressed: _saving || _isLoading ? null : _save,
             ),
+            const SizedBox(width: 8),
+          ],
+          bottom: TabBar(
+            controller: _tabController,
+            isScrollable: true,
+            tabAlignment: TabAlignment.start,
+            tabs: const [
+              Tab(text: 'Basic Info'),
+              Tab(text: 'Phone Numbers'),
+              Tab(text: 'Emergency Contacts'),
+              Tab(text: 'Pioneer Periods'),
+              Tab(text: 'Field Service Reports'),
+            ],
+          ),
+        ),
+        body: _isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : Form(
+                key: _formKey,
+                child: TabBarView(
+                  controller: _tabController,
+                  children: [
+                    ReadableWidth(
+                      maxWidth: AppContentWidth.form,
+                      child: _buildBasicInfoTab(),
+                    ),
+                    ReadableWidth(
+                      maxWidth: AppContentWidth.form,
+                      child: _buildPhoneNumbersTab(),
+                    ),
+                    ReadableWidth(
+                      maxWidth: AppContentWidth.form,
+                      child: _buildEmergencyContactsTab(),
+                    ),
+                    ReadableWidth(
+                      maxWidth: AppContentWidth.form,
+                      child: _buildPioneerPeriodsTab(),
+                    ),
+                    _buildFieldServiceReportsTab(),
+                  ],
+                ),
+              ),
+      ),
     );
   }
 
@@ -213,54 +237,43 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen>
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final isWide = constraints.maxWidth >= 400;
+        final isWide = constraints.maxWidth >= AppBreakpoints.medium;
         return SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
+          padding: AppSpacing.page,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              const SectionLabel(
+                'Personal details',
+                padding: EdgeInsets.only(bottom: 16),
+              ),
               _responsiveRow(isWide, [
                 TextFormField(
                   controller: _firstNameController,
-                  decoration: const InputDecoration(
-                    labelText: 'First Name',
-                    border: OutlineInputBorder(),
-                  ),
+                  decoration: const InputDecoration(labelText: 'First Name'),
                   validator: (v) => v == null || v.isEmpty ? 'Required' : null,
                 ),
                 TextFormField(
                   controller: _lastNameController,
-                  decoration: const InputDecoration(
-                    labelText: 'Last Name',
-                    border: OutlineInputBorder(),
-                  ),
+                  decoration: const InputDecoration(labelText: 'Last Name'),
                   validator: (v) => v == null || v.isEmpty ? 'Required' : null,
                 ),
               ]),
               const SizedBox(height: 12),
               TextFormField(
                 controller: _otherNamesController,
-                decoration: const InputDecoration(
-                  labelText: 'Other Names',
-                  border: OutlineInputBorder(),
-                ),
+                decoration: const InputDecoration(labelText: 'Other Names'),
               ),
               const SizedBox(height: 12),
               TextFormField(
                 controller: _addressController,
-                decoration: const InputDecoration(
-                  labelText: 'Address',
-                  border: OutlineInputBorder(),
-                ),
+                decoration: const InputDecoration(labelText: 'Address'),
                 maxLines: 2,
               ),
               const SizedBox(height: 12),
               TextFormField(
                 controller: _emailController,
-                decoration: const InputDecoration(
-                  labelText: 'Email',
-                  border: OutlineInputBorder(),
-                ),
+                decoration: const InputDecoration(labelText: 'Email'),
                 keyboardType: TextInputType.emailAddress,
                 validator: (v) =>
                     (v == null || v.trim().isEmpty || v.contains('@'))
@@ -285,10 +298,7 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen>
                 DropdownButtonFormField<Gender>(
                   isExpanded: true,
                   initialValue: _gender,
-                  decoration: const InputDecoration(
-                    labelText: 'Gender',
-                    border: OutlineInputBorder(),
-                  ),
+                  decoration: const InputDecoration(labelText: 'Gender'),
                   items: Gender.values
                       .map(
                         (g) => DropdownMenuItem(
@@ -303,10 +313,7 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen>
                 DropdownButtonFormField<HopeClass>(
                   isExpanded: true,
                   initialValue: _hopeClass,
-                  decoration: const InputDecoration(
-                    labelText: 'Hope',
-                    border: OutlineInputBorder(),
-                  ),
+                  decoration: const InputDecoration(labelText: 'Hope'),
                   items: HopeClass.values
                       .map(
                         (h) => DropdownMenuItem(
@@ -320,13 +327,16 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen>
                 ),
               ]),
               const SizedBox(height: 12),
+              const SectionLabel(
+                'Congregation',
+                padding: EdgeInsets.symmetric(vertical: 16),
+              ),
               _responsiveRow(isWide, [
                 DropdownButtonFormField<CongregationRole>(
                   isExpanded: true,
                   initialValue: _congregationRole,
                   decoration: const InputDecoration(
                     labelText: 'Congregation Role',
-                    border: OutlineInputBorder(),
                   ),
                   items: CongregationRole.values
                       .map(
@@ -343,10 +353,7 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen>
                 DropdownButtonFormField<PioneerType>(
                   isExpanded: true,
                   initialValue: _pioneerType,
-                  decoration: const InputDecoration(
-                    labelText: 'Pioneer Type',
-                    border: OutlineInputBorder(),
-                  ),
+                  decoration: const InputDecoration(labelText: 'Pioneer Type'),
                   items: PioneerType.values
                       .map(
                         (p) => DropdownMenuItem(
@@ -366,7 +373,6 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen>
                   initialValue: _fieldServiceGroupId,
                   decoration: const InputDecoration(
                     labelText: 'Field Service Group',
-                    border: OutlineInputBorder(),
                   ),
                   items: [
                     const DropdownMenuItem(value: null, child: Text('None')),
@@ -445,283 +451,203 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen>
     );
   }
 
-  Widget _buildPhoneNumbersTab() {
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              FilledButton.tonalIcon(
-                icon: const Icon(Icons.add),
-                label: const Text('Add Phone'),
-                onPressed: () {
-                  setState(() {
-                    _phoneNumbers.add(
-                      _PhoneNumberEntry(
-                        numberController: TextEditingController(),
-                      ),
-                    );
-                  });
-                },
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Expanded(
-            child: ListView.builder(
-              itemCount: _phoneNumbers.length,
-              itemBuilder: (context, index) {
-                final entry = _phoneNumbers[index];
-                return Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          flex: 2,
-                          child: TextFormField(
-                            controller: entry.numberController,
-                            decoration: const InputDecoration(
-                              labelText: 'Phone Number',
-                              border: OutlineInputBorder(),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: DropdownButtonFormField<PhoneType>(
-                            initialValue: entry.phoneType,
-                            decoration: const InputDecoration(
-                              labelText: 'Type',
-                              border: OutlineInputBorder(),
-                            ),
-                            items: PhoneType.values
-                                .map(
-                                  (t) => DropdownMenuItem(
-                                    value: t,
-                                    child: Text(t.displayName),
-                                  ),
-                                )
-                                .toList(),
-                            onChanged: (v) => setState(
-                              () => entry.phoneType = v ?? PhoneType.mobile,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Checkbox(
-                          value: entry.isPrimary,
-                          onChanged: (v) =>
-                              setState(() => entry.isPrimary = v ?? false),
-                        ),
-                        const Text('Primary'),
-                        IconButton(
-                          icon: const Icon(Icons.delete),
-                          onPressed: () =>
-                              setState(() => _phoneNumbers.removeAt(index)),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-        ],
+  Widget _buildPhoneNumbersTab() => _buildEntryTab(
+    buttonLabel: 'Add Phone',
+    emptyTitle: 'No phone numbers',
+    emptyIcon: Icons.phone_outlined,
+    onAdd: () => setState(
+      () => _phoneNumbers.add(
+        _PhoneNumberEntry(numberController: TextEditingController()),
       ),
-    );
-  }
+    ),
+    children: [
+      for (final entry in _phoneNumbers)
+        _EntryFields(
+          key: ObjectKey(entry),
+          fields: [
+            TextFormField(
+              controller: entry.numberController,
+              keyboardType: TextInputType.phone,
+              decoration: const InputDecoration(labelText: 'Phone Number'),
+            ),
+            DropdownButtonFormField<PhoneType>(
+              isExpanded: true,
+              initialValue: entry.phoneType,
+              decoration: const InputDecoration(labelText: 'Type'),
+              items: PhoneType.values
+                  .map(
+                    (type) => DropdownMenuItem(
+                      value: type,
+                      child: Text(type.displayName),
+                    ),
+                  )
+                  .toList(),
+              onChanged: (value) =>
+                  setState(() => entry.phoneType = value ?? PhoneType.mobile),
+            ),
+          ],
+          actions: [
+            _primaryCheckbox(
+              entry.isPrimary,
+              (value) => setState(() => entry.isPrimary = value),
+            ),
+            IconButton(
+              tooltip: 'Remove phone number',
+              icon: const Icon(Icons.delete_outline),
+              onPressed: () => setState(() => _phoneNumbers.remove(entry)),
+            ),
+          ],
+        ),
+    ],
+  );
 
-  Widget _buildEmergencyContactsTab() {
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              FilledButton.tonalIcon(
-                icon: const Icon(Icons.add),
-                label: const Text('Add Contact'),
-                onPressed: () {
-                  setState(() {
-                    _emergencyContacts.add(
-                      _EmergencyContactEntry(
-                        nameController: TextEditingController(),
-                        phoneController: TextEditingController(),
-                      ),
-                    );
-                  });
-                },
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Expanded(
-            child: ListView.builder(
-              itemCount: _emergencyContacts.length,
-              itemBuilder: (context, index) {
-                final entry = _emergencyContacts[index];
-                return Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Column(
-                      children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: TextFormField(
-                                controller: entry.nameController,
-                                decoration: const InputDecoration(
-                                  labelText: 'Name',
-                                  border: OutlineInputBorder(),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: TextFormField(
-                                controller: entry.phoneController,
-                                decoration: const InputDecoration(
-                                  labelText: 'Phone',
-                                  border: OutlineInputBorder(),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: DropdownButtonFormField<Relationship>(
-                                initialValue: entry.relationship,
-                                decoration: const InputDecoration(
-                                  labelText: 'Relationship',
-                                  border: OutlineInputBorder(),
-                                ),
-                                items: Relationship.values
-                                    .map(
-                                      (r) => DropdownMenuItem(
-                                        value: r,
-                                        child: Text(r.displayName),
-                                      ),
-                                    )
-                                    .toList(),
-                                onChanged: (v) => setState(
-                                  () => entry.relationship =
-                                      v ?? Relationship.other,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Checkbox(
-                              value: entry.isPrimary,
-                              onChanged: (v) =>
-                                  setState(() => entry.isPrimary = v ?? false),
-                            ),
-                            const Text('Primary'),
-                            IconButton(
-                              icon: const Icon(Icons.delete),
-                              onPressed: () => setState(
-                                () => _emergencyContacts.removeAt(index),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-        ],
+  Widget _buildEmergencyContactsTab() => _buildEntryTab(
+    buttonLabel: 'Add Contact',
+    emptyTitle: 'No emergency contacts',
+    emptyIcon: Icons.contact_phone_outlined,
+    onAdd: () => setState(
+      () => _emergencyContacts.add(
+        _EmergencyContactEntry(
+          nameController: TextEditingController(),
+          phoneController: TextEditingController(),
+        ),
       ),
-    );
-  }
+    ),
+    children: [
+      for (final entry in _emergencyContacts)
+        _EntryFields(
+          key: ObjectKey(entry),
+          fields: [
+            TextFormField(
+              controller: entry.nameController,
+              decoration: const InputDecoration(labelText: 'Name'),
+            ),
+            TextFormField(
+              controller: entry.phoneController,
+              keyboardType: TextInputType.phone,
+              decoration: const InputDecoration(labelText: 'Phone'),
+            ),
+            DropdownButtonFormField<Relationship>(
+              isExpanded: true,
+              initialValue: entry.relationship,
+              decoration: const InputDecoration(labelText: 'Relationship'),
+              items: Relationship.values
+                  .map(
+                    (value) => DropdownMenuItem(
+                      value: value,
+                      child: Text(value.displayName),
+                    ),
+                  )
+                  .toList(),
+              onChanged: (value) => setState(
+                () => entry.relationship = value ?? Relationship.other,
+              ),
+            ),
+          ],
+          actions: [
+            _primaryCheckbox(
+              entry.isPrimary,
+              (value) => setState(() => entry.isPrimary = value),
+            ),
+            IconButton(
+              tooltip: 'Remove emergency contact',
+              icon: const Icon(Icons.delete_outline),
+              onPressed: () => setState(() => _emergencyContacts.remove(entry)),
+            ),
+          ],
+        ),
+    ],
+  );
 
-  Widget _buildPioneerPeriodsTab() {
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              FilledButton.tonalIcon(
-                icon: const Icon(Icons.add),
-                label: const Text('Add Period'),
-                onPressed: () {
-                  final now = DateTime.now();
-                  setState(() {
-                    _auxPioneerPeriods.add(
-                      _AuxPioneerEntry(
-                        startMonth: now.month,
-                        startYear: now.year,
-                      ),
-                    );
-                  });
-                },
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Expanded(
-            child: ListView.builder(
-              itemCount: _auxPioneerPeriods.length,
-              itemBuilder: (context, index) {
-                final entry = _auxPioneerPeriods[index];
-                return Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: _MonthYearPicker(
-                            label: 'Start',
-                            month: entry.startMonth,
-                            year: entry.startYear,
-                            onMonthChanged: (m) => setState(
-                              () => entry.startMonth = m ?? entry.startMonth,
-                            ),
-                            onYearChanged: (y) => setState(
-                              () => entry.startYear = y ?? entry.startYear,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _MonthYearPicker(
-                            label: 'End (optional)',
-                            month: entry.endMonth,
-                            year: entry.endYear,
-                            allowNull: true,
-                            onMonthChanged: (m) =>
-                                setState(() => entry.endMonth = m),
-                            onYearChanged: (y) =>
-                                setState(() => entry.endYear = y),
-                          ),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.delete),
-                          onPressed: () => setState(
-                            () => _auxPioneerPeriods.removeAt(index),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              },
+  Widget _buildPioneerPeriodsTab() => _buildEntryTab(
+    buttonLabel: 'Add Period',
+    emptyTitle: 'No auxiliary pioneer periods',
+    emptyIcon: Icons.date_range_outlined,
+    onAdd: () {
+      final now = DateTime.now();
+      setState(
+        () => _auxPioneerPeriods.add(
+          _AuxPioneerEntry(startMonth: now.month, startYear: now.year),
+        ),
+      );
+    },
+    children: [
+      for (final entry in _auxPioneerPeriods)
+        _EntryFields(
+          key: ObjectKey(entry),
+          fields: [
+            _MonthYearPicker(
+              label: 'Start',
+              month: entry.startMonth,
+              year: entry.startYear,
+              onMonthChanged: (value) =>
+                  setState(() => entry.startMonth = value ?? entry.startMonth),
+              onYearChanged: (value) =>
+                  setState(() => entry.startYear = value ?? entry.startYear),
             ),
-          ),
-        ],
+            _MonthYearPicker(
+              label: 'End (optional)',
+              month: entry.endMonth,
+              year: entry.endYear,
+              allowNull: true,
+              onMonthChanged: (value) => setState(() => entry.endMonth = value),
+              onYearChanged: (value) => setState(() => entry.endYear = value),
+            ),
+          ],
+          actions: [
+            IconButton(
+              tooltip: 'Remove pioneer period',
+              icon: const Icon(Icons.delete_outline),
+              onPressed: () => setState(() => _auxPioneerPeriods.remove(entry)),
+            ),
+          ],
+        ),
+    ],
+  );
+
+  Widget _primaryCheckbox(bool value, ValueChanged<bool> onChanged) => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Checkbox(
+        value: value,
+        semanticLabel: 'Primary',
+        onChanged: (value) => onChanged(value ?? false),
       ),
-    );
-  }
+      const Text('Primary'),
+    ],
+  );
+
+  Widget _buildEntryTab({
+    required String buttonLabel,
+    required String emptyTitle,
+    required IconData emptyIcon,
+    required VoidCallback onAdd,
+    required List<Widget> children,
+  }) => Padding(
+    padding: const EdgeInsets.all(AppSpacing.lg),
+    child: Column(
+      children: [
+        Align(
+          alignment: Alignment.centerRight,
+          child: FilledButton.tonalIcon(
+            icon: const Icon(Icons.add),
+            label: Text(buttonLabel),
+            onPressed: onAdd,
+          ),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        Expanded(
+          child: children.isEmpty
+              ? EmptyState(
+                  icon: emptyIcon,
+                  title: emptyTitle,
+                  message: 'Use the button above to add an entry.',
+                )
+              : ListView(children: children),
+        ),
+      ],
+    ),
+  );
 
   // ──────────────────────────────────────────────────
   // Service year month ordering: Sep, Oct, Nov, Dec, Jan, Feb, Mar, Apr, May, Jun, Jul, Aug
@@ -795,8 +721,10 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen>
 
   Widget _buildFieldServiceReportsTab() {
     if (widget.personId == null) {
-      return const Center(
-        child: Text('Save the publisher first to add service reports.'),
+      return const EmptyState(
+        icon: Icons.assignment_outlined,
+        title: 'Save the publisher first',
+        message: 'Save this publisher to start adding service reports.',
       );
     }
 
@@ -806,6 +734,7 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen>
     return Padding(
       padding: const EdgeInsets.all(16),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Wrap(
             spacing: 8,
@@ -819,7 +748,6 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen>
                   initialValue: _filterYear,
                   decoration: const InputDecoration(
                     labelText: 'Filter Service Year',
-                    border: OutlineInputBorder(),
                     isDense: true,
                   ),
                   items: [
@@ -843,7 +771,6 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen>
                   controller: _newYearController,
                   decoration: const InputDecoration(
                     labelText: 'Service Year',
-                    border: OutlineInputBorder(),
                     isDense: true,
                   ),
                   keyboardType: TextInputType.number,
@@ -868,10 +795,16 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen>
           const SizedBox(height: 12),
           Expanded(
             child: filtered.isEmpty
-                ? const Center(child: Text('No service reports.'))
+                ? const EmptyState(
+                    icon: Icons.assignment_outlined,
+                    title: 'No service reports',
+                    message:
+                        'Enter a service year above and choose Add Service '
+                        'Year to create its months.',
+                  )
                 : LayoutBuilder(
                     builder: (context, constraints) {
-                      if (constraints.maxWidth < 600) {
+                      if (constraints.maxWidth < AppBreakpoints.medium) {
                         return _buildReportCards(filtered);
                       }
                       return _buildReportTable(filtered);
@@ -899,21 +832,31 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen>
                   style: Theme.of(context).textTheme.titleSmall,
                 ),
                 const SizedBox(height: 8),
-                Row(
+                Wrap(
+                  spacing: AppSpacing.lg,
                   children: [
-                    Checkbox(
-                      value: r.sharedInMinistry,
-                      onChanged: (v) =>
-                          setState(() => r.sharedInMinistry = v ?? false),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Checkbox(
+                          value: r.sharedInMinistry,
+                          onChanged: (v) =>
+                              setState(() => r.sharedInMinistry = v ?? false),
+                        ),
+                        const Text('Shared'),
+                      ],
                     ),
-                    const Text('Shared'),
-                    const SizedBox(width: 16),
-                    Checkbox(
-                      value: r.isAuxiliaryPioneer,
-                      onChanged: (v) =>
-                          setState(() => r.isAuxiliaryPioneer = v ?? false),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Checkbox(
+                          value: r.isAuxiliaryPioneer,
+                          onChanged: (v) =>
+                              setState(() => r.isAuxiliaryPioneer = v ?? false),
+                        ),
+                        const Text('Aux. Pioneer'),
+                      ],
                     ),
-                    const Text('Aux Pioneer'),
                   ],
                 ),
                 const SizedBox(height: 8),
@@ -926,7 +869,6 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen>
                             : '',
                         decoration: const InputDecoration(
                           labelText: 'Studies',
-                          border: OutlineInputBorder(),
                           isDense: true,
                         ),
                         keyboardType: TextInputType.number,
@@ -939,7 +881,6 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen>
                         initialValue: r.hours > 0 ? r.hours.toString() : '',
                         decoration: const InputDecoration(
                           labelText: 'Hours',
-                          border: OutlineInputBorder(),
                           isDense: true,
                         ),
                         keyboardType: TextInputType.number,
@@ -953,7 +894,6 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen>
                   initialValue: r.note,
                   decoration: const InputDecoration(
                     labelText: 'Notes/Remarks',
-                    border: OutlineInputBorder(),
                     isDense: true,
                   ),
                   onChanged: (v) => r.note = v,
@@ -1083,7 +1023,27 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen>
     );
   }
 
+  bool _saving = false;
+
   Future<void> _save() async {
+    if (_saving) return;
+    setState(() => _saving = true);
+    try {
+      await _persist();
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not save changes. Please try again.'),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _persist() async {
     if (!_formKey.currentState!.validate()) return;
 
     final db = ref.read(databaseProvider);
@@ -1305,10 +1265,10 @@ class _DatePickerField extends StatelessWidget {
       child: InputDecorator(
         decoration: InputDecoration(
           labelText: label,
-          border: const OutlineInputBorder(),
           suffixIcon: value != null
               ? IconButton(
                   icon: const Icon(Icons.clear),
+                  tooltip: 'Clear $label',
                   onPressed: () => onChanged(null),
                 )
               : const Icon(Icons.calendar_today),
@@ -1375,10 +1335,10 @@ class _MonthYearPicker extends StatelessWidget {
           children: [
             Expanded(
               child: DropdownButtonFormField<int?>(
+                isExpanded: true,
                 initialValue: month,
                 decoration: const InputDecoration(
                   labelText: 'Month',
-                  border: OutlineInputBorder(),
                   isDense: true,
                 ),
                 items: months,
@@ -1389,10 +1349,10 @@ class _MonthYearPicker extends StatelessWidget {
             SizedBox(
               width: 100,
               child: DropdownButtonFormField<int?>(
+                isExpanded: true,
                 initialValue: year,
                 decoration: const InputDecoration(
                   labelText: 'Year',
-                  border: OutlineInputBorder(),
                   isDense: true,
                 ),
                 items: years,
@@ -1404,4 +1364,49 @@ class _MonthYearPicker extends StatelessWidget {
       ],
     );
   }
+}
+
+/// Keeps related fields legible when the form is narrower than a desktop row.
+class _EntryFields extends StatelessWidget {
+  const _EntryFields({super.key, required this.fields, required this.actions});
+  final List<Widget> fields;
+  final List<Widget> actions;
+
+  @override
+  Widget build(BuildContext context) => Card(
+    child: Padding(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final wide = constraints.maxWidth >= AppBreakpoints.medium;
+          final actionRow = Row(
+            mainAxisSize: MainAxisSize.min,
+            children: actions,
+          );
+          if (wide) {
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                for (final field in fields) ...[
+                  Expanded(child: field),
+                  const SizedBox(width: AppSpacing.md),
+                ],
+                actionRow,
+              ],
+            );
+          }
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (final field in fields) ...[
+                field,
+                const SizedBox(height: AppSpacing.md),
+              ],
+              Align(alignment: Alignment.centerRight, child: actionRow),
+            ],
+          );
+        },
+      ),
+    ),
+  );
 }

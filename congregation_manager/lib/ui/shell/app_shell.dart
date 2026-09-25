@@ -1,86 +1,168 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:congregation_manager/ui/theme/layout.dart';
+
 class AppShell extends StatelessWidget {
-  final Widget child;
+  final StatefulNavigationShell navigationShell;
 
-  const AppShell({super.key, required this.child});
+  const AppShell({super.key, required this.navigationShell});
 
-  int _selectedIndex(BuildContext context) {
-    final location = GoRouterState.of(context).uri.toString();
-    if (location.startsWith('/persons')) return 1;
-    if (location.startsWith('/groups')) return 2;
-    if (location.startsWith('/reports')) return 3;
-    if (location.startsWith('/settings')) return 4;
-    return 0;
+  static const _destinations =
+      <({IconData icon, IconData selectedIcon, String label})>[
+        (icon: Icons.home_outlined, selectedIcon: Icons.home, label: 'Home'),
+        (
+          icon: Icons.people_outline,
+          selectedIcon: Icons.people,
+          label: 'Publishers',
+        ),
+        (
+          icon: Icons.groups_outlined,
+          selectedIcon: Icons.groups,
+          label: 'Groups',
+        ),
+        (
+          icon: Icons.assignment_outlined,
+          selectedIcon: Icons.assignment,
+          label: 'Reports',
+        ),
+        (
+          icon: Icons.settings_outlined,
+          selectedIcon: Icons.settings,
+          label: 'Settings',
+        ),
+      ];
+
+  void _goBranch(int index) {
+    // Choosing the current tab again returns it to its first page.
+    navigationShell.goBranch(
+      index,
+      initialLocation: index == navigationShell.currentIndex,
+    );
   }
-
-  void _onDestinationSelected(BuildContext context, int index) {
-    switch (index) {
-      case 0:
-        context.go('/home');
-      case 1:
-        context.go('/persons');
-      case 2:
-        context.go('/groups');
-      case 3:
-        context.go('/reports');
-      case 4:
-        context.go('/settings');
-    }
-  }
-
-  static const _destinations = <({IconData icon, IconData selectedIcon, String label})>[
-    (icon: Icons.home_outlined, selectedIcon: Icons.home, label: 'Home'),
-    (icon: Icons.people_outline, selectedIcon: Icons.people, label: 'Persons'),
-    (icon: Icons.groups_outlined, selectedIcon: Icons.groups, label: 'Groups'),
-    (icon: Icons.assignment_outlined, selectedIcon: Icons.assignment, label: 'Reports'),
-    (icon: Icons.settings_outlined, selectedIcon: Icons.settings, label: 'Settings'),
-  ];
 
   @override
   Widget build(BuildContext context) {
-    final selectedIndex = _selectedIndex(context);
-    final isWide = MediaQuery.of(context).size.width >= 600;
+    final width = MediaQuery.sizeOf(context).width;
+    final selectedIndex = navigationShell.currentIndex;
 
-    if (isWide) {
+    if (width >= AppBreakpoints.medium) {
+      final extended = width >= AppBreakpoints.large;
       return Scaffold(
         body: Row(
           children: [
             NavigationRail(
-              extended: MediaQuery.of(context).size.width > 800,
+              scrollable: true,
+              extended: extended,
+              labelType: extended
+                  ? NavigationRailLabelType.none
+                  : NavigationRailLabelType.all,
+              leading: const SizedBox(height: AppSpacing.sm),
               selectedIndex: selectedIndex,
-              onDestinationSelected: (i) =>
-                  _onDestinationSelected(context, i),
-              destinations: _destinations
-                  .map((d) => NavigationRailDestination(
-                        icon: Icon(d.icon),
-                        selectedIcon: Icon(d.selectedIcon),
-                        label: Text(d.label),
-                      ))
-                  .toList(),
+              onDestinationSelected: _goBranch,
+              destinations: [
+                for (final d in _destinations)
+                  NavigationRailDestination(
+                    icon: Icon(d.icon),
+                    selectedIcon: Icon(d.selectedIcon),
+                    label: Text(d.label),
+                  ),
+              ],
             ),
             const VerticalDivider(thickness: 1, width: 1),
-            Expanded(child: child),
+            Expanded(child: navigationShell),
           ],
         ),
       );
     }
 
     return Scaffold(
-      body: child,
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: selectedIndex,
-        onDestinationSelected: (i) =>
-            _onDestinationSelected(context, i),
-        destinations: _destinations
-            .map((d) => NavigationDestination(
-                  icon: Icon(d.icon),
-                  selectedIcon: Icon(d.selectedIcon),
-                  label: d.label,
-                ))
-            .toList(),
+      body: navigationShell,
+      // Like Material's built-in label scaling cap, keep fixed-width navigation
+      // labels on one line. Page content retains the user's full text scale.
+      bottomNavigationBar: MediaQuery.withClampedTextScaling(
+        maxScaleFactor: width < 360 ? 1 : 1.2,
+        child: NavigationBar(
+          selectedIndex: selectedIndex,
+          onDestinationSelected: _goBranch,
+          destinations: [
+            for (final d in _destinations)
+              NavigationDestination(
+                icon: Icon(d.icon),
+                selectedIcon: Icon(d.selectedIcon),
+                label: d.label,
+              ),
+          ],
+        ),
       ),
+    );
+  }
+}
+
+/// Keeps every tab's navigator alive, like go_router's indexed stack, so each
+/// tab keeps its scroll position, sorting and selection. It also moves
+/// keyboard focus to the visible tab, so typing never lands in a hidden one.
+class ShellBranchContainer extends StatefulWidget {
+  const ShellBranchContainer({
+    super.key,
+    required this.currentIndex,
+    required this.children,
+  });
+
+  final int currentIndex;
+  final List<Widget> children;
+
+  @override
+  State<ShellBranchContainer> createState() => _ShellBranchContainerState();
+}
+
+class _ShellBranchContainerState extends State<ShellBranchContainer> {
+  final List<FocusScopeNode> _scopes = [];
+
+  FocusScopeNode _scope(int index) {
+    while (_scopes.length <= index) {
+      _scopes.add(FocusScopeNode(debugLabel: 'Tab ${_scopes.length}'));
+    }
+    return _scopes[index];
+  }
+
+  @override
+  void didUpdateWidget(covariant ShellBranchContainer oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.currentIndex == widget.currentIndex) return;
+    final scope = _scope(widget.currentIndex);
+    // After the frame, so a tab opened for the first time is attached. Focus
+    // returns to whatever last had it inside the tab.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && scope.context != null) scope.requestFocus();
+    });
+  }
+
+  @override
+  void dispose() {
+    for (final scope in _scopes) {
+      scope.dispose();
+    }
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return IndexedStack(
+      index: widget.currentIndex,
+      children: [
+        for (final (index, child) in widget.children.indexed)
+          Offstage(
+            offstage: index != widget.currentIndex,
+            child: TickerMode(
+              enabled: index == widget.currentIndex,
+              child: ExcludeFocus(
+                excluding: index != widget.currentIndex,
+                child: FocusScope(node: _scope(index), child: child),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }

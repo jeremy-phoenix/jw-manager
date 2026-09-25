@@ -25,6 +25,7 @@ class _PublisherContactListOptionsDialogState
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
+      scrollable: true,
       title: const Text('Publisher Contact List'),
       content: SizedBox(
         width: 360,

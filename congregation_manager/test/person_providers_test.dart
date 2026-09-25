@@ -51,7 +51,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Congregation Persons'), findsOneWidget);
+    expect(find.text('Publishers'), findsOneWidget);
     expect(find.text('Zephyr'), findsOneWidget);
     expect(find.text('Dormant'), findsOneWidget);
     expect(find.text('Rows: 2'), findsOneWidget);
@@ -60,7 +60,7 @@ void main() {
 
     await tester.tap(find.byTooltip('More filters'));
     await tester.pumpAndSettle();
-    expect(find.text('Filter and Sort Persons'), findsOneWidget);
+    expect(find.text('Filter and Sort Publishers'), findsOneWidget);
     expect(
       tester
           .getSize(find.byKey(const ValueKey('person-list-include-inactive')))
@@ -171,7 +171,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Archive'), findsNothing);
-    expect(find.text('No persons found.'), findsOneWidget);
+    expect(find.text('No publishers'), findsOneWidget);
     final person = await db.getPerson(personId);
     expect(person.recordStatus, PersonRecordStatus.archived);
     expect(person.archiveReason, PersonArchiveReason.transferredOut);

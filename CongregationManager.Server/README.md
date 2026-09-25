@@ -77,6 +77,27 @@ or revoked token is always rejected (fail closed). Errors are JSON:
 
 ## Running locally
 
+On Windows, with the .NET 10 SDK installed, double-click
+`scripts\Start-SyncServer.cmd`, or run this from the repository root:
+
+```powershell
+.\scripts\Start-SyncServer.ps1
+```
+
+The launcher creates a cryptographically random registration secret in .NET
+user secrets if the setting is missing or contains the literal placeholder
+`$(openssl rand -base64 33)`. Other existing settings are preserved. It
+starts the server with the Development launch profile. It works from any
+working directory and does not require OpenSSL. Press Ctrl+C to stop.
+To view the secret for vault creation or the end-to-end test, run
+`dotnet user-secrets list --project CongregationManager.Server` from the
+repository root.
+
+Alternatively, from Bash with OpenSSL installed, run these commands from
+the repository root (the first command replaces any existing secret).
+Do not run these in Windows CMD: it saves `$(openssl rand -base64 33)`
+literally instead of generating a secret. Use the Windows launcher above.
+
 ```sh
 dotnet user-secrets set "SyncServer:Registration:Secret" "$(openssl rand -base64 33)" --project CongregationManager.Server
 dotnet run --project CongregationManager.Server
@@ -139,6 +160,9 @@ SYNC_TEST_SERVER_URL=http://127.0.0.1:5080 SYNC_TEST_REGISTRATION_SECRET=<secret
 9. **Disable vault creation:** blank `SyncServer__Registration__Secret` and
    `sudo systemctl restart congregation-sync`. Existing devices keep working
    and invites still add devices.
+10. **Monitoring.** Follow [Uptime Kuma setup](deploy/uptime-kuma.md) to run
+    Kuma with Docker and your existing reverse proxy, monitor `/health`, and
+    configure notifications.
 
 ## VPS hardening checklist
 
@@ -153,7 +177,7 @@ SYNC_TEST_SERVER_URL=http://127.0.0.1:5080 SYNC_TEST_REGISTRATION_SECRET=<secret
   limited to its own database.
 - Backups with `deploy/backup.sh` (age-encrypted, copied off the server).
   Test a restore once.
-- An uptime monitor on `/health`.
+- An uptime monitor on `/health`: see [Uptime Kuma setup](deploy/uptime-kuma.md).
 - Registration secret blank except while creating a vault.
 
 ## Runbook

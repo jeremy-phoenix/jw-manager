@@ -55,17 +55,17 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Unassigned Persons'), findsOneWidget);
-    expect(find.text('1 person is not assigned.'), findsOneWidget);
+    expect(find.text('Unassigned Publishers'), findsOneWidget);
+    expect(find.text('1 publisher is not assigned.'), findsOneWidget);
 
-    await tester.tap(find.text('Unassigned Persons'));
+    await tester.tap(find.text('Unassigned Publishers'));
     await tester.pumpAndSettle();
 
     final dialog = find.byType(AlertDialog);
     expect(
       find.descendant(
         of: dialog,
-        matching: find.text('Unassigned Persons (1)'),
+        matching: find.text('Unassigned Publishers (1)'),
       ),
       findsOneWidget,
     );

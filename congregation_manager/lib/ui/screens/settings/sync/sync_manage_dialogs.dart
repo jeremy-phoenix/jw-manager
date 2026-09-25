@@ -13,6 +13,7 @@ import 'package:congregation_manager/providers/sync_providers.dart';
 import 'package:congregation_manager/services/sync/sync_crypto.dart';
 import 'package:congregation_manager/services/sync/sync_service.dart';
 import 'package:congregation_manager/ui/screens/settings/sync/recovery_code_dialog.dart';
+import 'package:congregation_manager/ui/theme/layout.dart';
 
 final _dateTime = DateFormat.yMMMd().add_jm();
 
@@ -130,6 +131,10 @@ class _InviteDialogState extends ConsumerState<_InviteDialog> {
                 Text('Valid for', style: theme.textTheme.titleSmall),
                 const SizedBox(height: 8),
                 SegmentedButton<Duration>(
+                  direction:
+                      MediaQuery.sizeOf(context).width < AppBreakpoints.medium
+                      ? Axis.vertical
+                      : Axis.horizontal,
                   segments: [
                     for (final (lifetime, label) in _lifetimes)
                       ButtonSegment(value: lifetime, label: Text(label)),
@@ -324,16 +329,17 @@ class _DevicesDialogState extends ConsumerState<_DevicesDialog> {
   }
 
   Future<void> _rename(SyncDevice device) async {
-    final controller = TextEditingController(text: device.label);
+    var editedLabel = device.label ?? '';
     final label = await showDialog<String>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('Rename this device'),
-        content: TextField(
-          controller: controller,
+        content: TextFormField(
+          initialValue: editedLabel,
+          onChanged: (value) => editedLabel = value,
           autofocus: true,
           maxLength: 60,
-          decoration: const InputDecoration(border: OutlineInputBorder()),
+          decoration: const InputDecoration(labelText: 'Device name'),
         ),
         actions: [
           TextButton(
@@ -342,13 +348,12 @@ class _DevicesDialogState extends ConsumerState<_DevicesDialog> {
           ),
           FilledButton(
             onPressed: () =>
-                Navigator.of(dialogContext).pop(controller.text.trim()),
+                Navigator.of(dialogContext).pop(editedLabel.trim()),
             child: const Text('Save'),
           ),
         ],
       ),
     );
-    controller.dispose();
     if (label == null || label.isEmpty) return;
     try {
       await ref.read(syncServiceProvider).renameThisDevice(label);
@@ -422,7 +427,6 @@ class _RotateKeyDialogState extends ConsumerState<_RotateKeyDialog> {
                       style: const TextStyle(fontFamily: 'monospace'),
                       decoration: const InputDecoration(
                         labelText: 'Current recovery code',
-                        border: OutlineInputBorder(),
                       ),
                     ),
                     CheckboxListTile(
@@ -543,6 +547,7 @@ class _RecoveryCodeActionDialogState
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return AlertDialog(
+      scrollable: true,
       title: Text(
         _delete ? 'Delete the vault from the server?' : 'Unlock the new key',
       ),
@@ -567,10 +572,7 @@ class _RecoveryCodeActionDialogState
               autocorrect: false,
               enableSuggestions: false,
               style: const TextStyle(fontFamily: 'monospace'),
-              decoration: const InputDecoration(
-                labelText: 'Recovery code',
-                border: OutlineInputBorder(),
-              ),
+              decoration: const InputDecoration(labelText: 'Recovery code'),
             ),
             if (_error != null) ...[
               const SizedBox(height: 12),
@@ -586,7 +588,10 @@ class _RecoveryCodeActionDialogState
         ),
         FilledButton(
           style: _delete
-              ? FilledButton.styleFrom(backgroundColor: theme.colorScheme.error)
+              ? FilledButton.styleFrom(
+                  backgroundColor: theme.colorScheme.error,
+                  foregroundColor: theme.colorScheme.onError,
+                )
               : null,
           onPressed: _busy ? null : _submit,
           child: Text(_delete ? 'Delete vault' : 'Unlock'),

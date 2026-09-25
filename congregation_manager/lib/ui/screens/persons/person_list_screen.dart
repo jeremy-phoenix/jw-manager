@@ -1,5 +1,6 @@
 import 'package:data_table_2/data_table_2.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:file_picker/file_picker.dart';
@@ -18,26 +19,47 @@ import 'package:congregation_manager/ui/dialogs/export_progress_dialog.dart';
 import 'package:congregation_manager/ui/dialogs/publisher_contact_list_options_dialog.dart';
 import 'package:congregation_manager/ui/screens/import/csv_sync_preview_screen.dart';
 import 'package:congregation_manager/ui/screens/import/import_persons_screen.dart';
+import 'package:congregation_manager/ui/theme/layout.dart';
 import 'package:congregation_manager/ui/widgets/app_popup_menu_item.dart';
+import 'package:congregation_manager/ui/widgets/empty_state.dart';
+import 'package:congregation_manager/ui/widgets/publisher_status.dart';
+import 'package:congregation_manager/ui/widgets/screen_shortcuts.dart';
 import 'package:congregation_manager/ui/widgets/search_text_field.dart';
 import 'package:congregation_manager/ui/widgets/sticky_data_table.dart';
+import 'package:congregation_manager/ui/widgets/toolbar_actions.dart';
 
-class PersonListScreen extends ConsumerWidget {
+class PersonListScreen extends ConsumerStatefulWidget {
   const PersonListScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<PersonListScreen> createState() => _PersonListScreenState();
+}
+
+class _PersonListScreenState extends ConsumerState<PersonListScreen> {
+  final _searchFocus = FocusNode(debugLabel: 'Publisher search');
+  final _tableCommands = _TableCommands();
+
+  @override
+  void dispose() {
+    _searchFocus.dispose();
+    super.dispose();
+  }
+
+  void _addPublisher() => context.push('/persons/new');
+
+  @override
+  Widget build(BuildContext context) {
     final filteredPersons = ref.watch(filteredPersonsProvider);
     final searchQuery = ref.watch(personSearchQueryProvider);
     final listOptions = ref.watch(personListOptionsProvider);
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Congregation Persons'),
+        title: const Text('Publishers'),
         actions: [
-          PopupMenuButton<String>(
-            icon: const Icon(Icons.upload_file),
-            tooltip: 'Import',
+          ToolbarMenu<String>(
+            icon: Icons.upload_file,
+            label: 'Import',
             onSelected: (value) {
               switch (value) {
                 case 's21':
@@ -59,8 +81,9 @@ class PersonListScreen extends ConsumerWidget {
               ),
             ],
           ),
-          PopupMenuButton<String>(
-            icon: const Icon(Icons.print),
+          ToolbarMenu<String>(
+            icon: Icons.print,
+            label: 'Reports',
             tooltip: 'Export Reports',
             onSelected: (value) {
               final svc = ReportService(
@@ -131,8 +154,9 @@ class PersonListScreen extends ConsumerWidget {
               ),
             ],
           ),
-          PopupMenuButton<String>(
-            icon: const Icon(Icons.inventory_2_outlined),
+          ToolbarMenu<String>(
+            icon: Icons.inventory_2_outlined,
+            label: 'Archive & Trash',
             tooltip: 'Publisher records',
             onSelected: (value) {
               switch (value) {
@@ -155,52 +179,116 @@ class PersonListScreen extends ConsumerWidget {
               ),
             ],
           ),
-          IconButton(
-            icon: const Icon(Icons.add),
-            tooltip: 'Add Person',
-            onPressed: () => context.push('/persons/new'),
+          ToolbarAction.primary(
+            icon: Icons.person_add_outlined,
+            label: 'Add publisher',
+            tooltip: 'Add Publisher (Ctrl+N)',
+            onPressed: _addPublisher,
           ),
         ],
       ),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: Row(
-              children: [
-                Expanded(
-                  child: SearchTextField(
-                    query: searchQuery,
-                    hintText: 'Search persons...',
-                    onChanged: (value) =>
-                        ref.read(personSearchQueryProvider.notifier).set(value),
-                    onClear: () =>
-                        ref.read(personSearchQueryProvider.notifier).set(''),
+      body: ScreenShortcuts(
+        bindings: {
+          commandKey(LogicalKeyboardKey.keyF): ScreenShortcut(
+            _searchFocus.requestFocus,
+            whileEditing: true,
+          ),
+          commandKey(LogicalKeyboardKey.keyN): ScreenShortcut(
+            _addPublisher,
+            whileEditing: true,
+          ),
+          commandKey(LogicalKeyboardKey.keyA): ScreenShortcut(
+            () => _tableCommands.selectAll?.call(),
+          ),
+          const SingleActivator(LogicalKeyboardKey.escape): ScreenShortcut(
+            () => _tableCommands.clearSelection?.call(),
+          ),
+        },
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(AppSpacing.md),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: SearchTextField(
+                      focusNode: _searchFocus,
+                      query: searchQuery,
+                      hintText: 'Search publishers...',
+                      onChanged: (value) => ref
+                          .read(personSearchQueryProvider.notifier)
+                          .set(value),
+                      onClear: () =>
+                          ref.read(personSearchQueryProvider.notifier).set(''),
+                    ),
                   ),
+                  const SizedBox(width: AppSpacing.sm),
+                  _buildMoreFilters(context, ref, options: listOptions),
+                ],
+              ),
+            ),
+            Expanded(
+              child: filteredPersons.when(
+                data: (persons) {
+                  if (persons.isEmpty) {
+                    return _buildEmptyState(searchQuery, listOptions);
+                  }
+                  return _PersonDataTable(
+                    key: ValueKey((
+                      ref.watch(currentCongregationIdProvider),
+                      listOptions.sortField,
+                      listOptions.sortAscending,
+                    )),
+                    persons: persons,
+                    commands: _tableCommands,
+                  );
+                },
+                loading: () => const Center(child: CircularProgressIndicator()),
+                error: (e, _) => EmptyState.error(
+                  title: 'Could not load publishers',
+                  error: e,
                 ),
-                const SizedBox(width: 8),
-                _buildMoreFilters(context, ref, options: listOptions),
-              ],
+              ),
             ),
-          ),
-          Expanded(
-            child: filteredPersons.when(
-              data: (persons) {
-                if (persons.isEmpty) {
-                  return const Center(child: Text('No persons found.'));
-                }
-                return _PersonDataTable(
-                  key: ValueKey(
-                    '${listOptions.sortField.name}-${listOptions.sortAscending}',
-                  ),
-                  persons: persons,
-                );
-              },
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (e, _) => Center(child: Text('Error: $e')),
-            ),
-          ),
-        ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyState(String searchQuery, PersonListOptions options) {
+    if (searchQuery.trim().isEmpty && options.activeOptionCount == 0) {
+      return EmptyState(
+        icon: Icons.people_outline,
+        title: 'No publishers',
+        message:
+            'Add a publisher, or import S-21 forms or a CSV export from the '
+            'Import menu.',
+        action: FilledButton.icon(
+          icon: const Icon(Icons.person_add_outlined),
+          label: const Text('Add publisher'),
+          onPressed: _addPublisher,
+        ),
+      );
+    }
+    return EmptyState(
+      icon: Icons.search_off,
+      title: 'No matching publishers',
+      message: 'Try another search, or clear the search and filters.',
+      action: FilledButton.tonalIcon(
+        icon: const Icon(Icons.filter_alt_off_outlined),
+        label: const Text('Clear search and filters'),
+        onPressed: () {
+          ref.read(personSearchQueryProvider.notifier).set('');
+          ref
+              .read(personListOptionsProvider.notifier)
+              .set(
+                PersonListOptions(
+                  sortField: options.sortField,
+                  sortAscending: options.sortAscending,
+                ),
+              );
+        },
       ),
     );
   }
@@ -389,8 +477,13 @@ class PersonListScreen extends ConsumerWidget {
 
 class _PersonDataTable extends ConsumerStatefulWidget {
   final List<Person> persons;
+  final _TableCommands commands;
 
-  const _PersonDataTable({super.key, required this.persons});
+  const _PersonDataTable({
+    super.key,
+    required this.persons,
+    required this.commands,
+  });
 
   @override
   ConsumerState<_PersonDataTable> createState() => _PersonDataTableState();
@@ -400,6 +493,66 @@ class _PersonDataTableState extends ConsumerState<_PersonDataTable> {
   final Set<int> _selectedIds = {};
   int? _sortColumnIndex;
   bool _sortAscending = true;
+
+  /// Rows in display order, for select-all and Shift-click ranges.
+  List<int> _visibleIds = const [];
+
+  /// The last row toggled without Shift: one end of a Shift-click range.
+  int? _rangeAnchorId;
+
+  @override
+  void initState() {
+    super.initState();
+    _attachCommands();
+  }
+
+  @override
+  void didUpdateWidget(covariant _PersonDataTable oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.commands != widget.commands) _attachCommands();
+  }
+
+  @override
+  void dispose() {
+    // A replacement table may already have taken over the commands.
+    if (widget.commands.selectAll == _selectAll) {
+      widget.commands
+        ..selectAll = null
+        ..clearSelection = null;
+    }
+    super.dispose();
+  }
+
+  void _attachCommands() {
+    widget.commands
+      ..selectAll = _selectAll
+      ..clearSelection = _clearSelection;
+  }
+
+  void _selectAll() => setState(() => _selectedIds.addAll(_visibleIds));
+
+  void _clearSelection() {
+    if (_selectedIds.isEmpty) return;
+    setState(_selectedIds.clear);
+  }
+
+  void _toggleSelection(int id, bool selected) {
+    setState(() {
+      final anchor = _rangeAnchorId;
+      final anchorIndex = anchor == null ? -1 : _visibleIds.indexOf(anchor);
+      if (HardwareKeyboard.instance.isShiftPressed && anchorIndex >= 0) {
+        final index = _visibleIds.indexOf(id);
+        final range = _visibleIds.sublist(
+          index < anchorIndex ? index : anchorIndex,
+          (index < anchorIndex ? anchorIndex : index) + 1,
+        );
+        selected ? _selectedIds.addAll(range) : _selectedIds.removeAll(range);
+      } else {
+        selected ? _selectedIds.add(id) : _selectedIds.remove(id);
+        _rangeAnchorId = id;
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -440,64 +593,67 @@ class _PersonDataTableState extends ConsumerState<_PersonDataTable> {
       });
     }
 
-    final width = MediaQuery.of(context).size.width;
-    final isWide = width >= 600;
+    _visibleIds = [for (final person in sorted) person.id];
+    final width = MediaQuery.sizeOf(context).width;
+    final isWide = width >= AppBreakpoints.medium;
     // Three inline buttons need more room than the table breakpoint allows.
-    final showInlineActions = width >= 760;
+    final showInlineActions = width >= AppBreakpoints.expanded;
 
     return Column(
       children: [
         if (_selectedIds.isNotEmpty)
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.xs,
+              0,
+              AppSpacing.md,
+              AppSpacing.xs,
+            ),
             child: Row(
               children: [
+                IconButton(
+                  icon: const Icon(Icons.close),
+                  tooltip: 'Clear selection (Esc)',
+                  onPressed: _clearSelection,
+                ),
                 Text('${_selectedIds.length} selected'),
                 const Spacer(),
                 if (showInlineActions) ...[
                   FilledButton.tonalIcon(
                     icon: const Icon(Icons.description),
                     label: const Text('Export Records'),
-                    onPressed: () => _exportSelected(context),
+                    onPressed: () => _export(context, _selectedIds),
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: AppSpacing.sm),
                   FilledButton.tonalIcon(
                     icon: const Icon(Icons.inventory_2_outlined),
                     label: const Text('Archive'),
-                    onPressed: () => _archiveSelected(context),
+                    onPressed: () => _archive(context, _selectedIds),
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: AppSpacing.sm),
                   FilledButton.tonalIcon(
                     icon: const Icon(Icons.delete_outline),
                     label: const Text('Move to Trash'),
-                    onPressed: () => _moveSelectedToTrash(context),
+                    onPressed: () => _moveToTrash(context, _selectedIds),
                   ),
                 ] else
-                  PopupMenuButton<_SelectedPublisherAction>(
+                  PopupMenuButton<_PublisherAction>(
                     tooltip: 'Selected publisher actions',
-                    onSelected: (action) {
-                      switch (action) {
-                        case _SelectedPublisherAction.exportRecords:
-                          _exportSelected(context);
-                        case _SelectedPublisherAction.archive:
-                          _archiveSelected(context);
-                        case _SelectedPublisherAction.moveToTrash:
-                          _moveSelectedToTrash(context);
-                      }
-                    },
+                    onSelected: (action) =>
+                        _runAction(context, action, _selectedIds),
                     itemBuilder: (_) => [
                       AppPopupMenuItem(
-                        value: _SelectedPublisherAction.exportRecords,
+                        value: _PublisherAction.exportRecords,
                         icon: Icons.description,
                         label: 'Export Records (S-21)',
                       ),
                       AppPopupMenuItem(
-                        value: _SelectedPublisherAction.archive,
+                        value: _PublisherAction.archive,
                         icon: Icons.inventory_2_outlined,
                         label: 'Archive',
                       ),
                       AppPopupMenuItem(
-                        value: _SelectedPublisherAction.moveToTrash,
+                        value: _PublisherAction.moveToTrash,
                         icon: Icons.delete_outline,
                         label: 'Move to Trash',
                       ),
@@ -523,44 +679,30 @@ class _PersonDataTableState extends ConsumerState<_PersonDataTable> {
   }
 
   Widget _buildCardList(List<Person> sorted) {
-    return ListView.builder(
-      padding: const EdgeInsets.symmetric(horizontal: 8),
+    final colors = Theme.of(context).colorScheme;
+    return ListView.separated(
+      padding: const EdgeInsets.only(bottom: AppSpacing.sm),
       itemCount: sorted.length,
+      separatorBuilder: (_, _) => const Divider(height: 1, indent: 72),
       itemBuilder: (context, index) {
         final person = sorted[index];
         final isSelected = _selectedIds.contains(person.id);
         final badges = _publisherBadges(person);
-        final cardSubtitle = _buildCardSubtitle(person, badges);
-        return Card(
-          margin: const EdgeInsets.symmetric(vertical: 4),
-          color: isSelected
-              ? Theme.of(context).colorScheme.primaryContainer
-              : null,
-          child: ListTile(
-            leading: Icon(
-              person.isActive ? Icons.check_circle : Icons.cancel,
-              color: person.isActive ? Colors.green : Colors.red,
+        return ListTile(
+          selected: isSelected,
+          selectedTileColor: colors.secondaryContainer,
+          leading: _InitialsAvatar(person: person, selected: isSelected),
+          title: Text(
+            formatPersonName(
+              person.firstName,
+              person.lastName,
+              ref.watch(nameOrderProvider),
             ),
-            title: Text(
-              formatPersonName(
-                person.firstName,
-                person.lastName,
-                ref.watch(nameOrderProvider),
-              ),
-            ),
-            subtitle: cardSubtitle,
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => context.push('/persons/edit/${person.id}'),
-            onLongPress: () {
-              setState(() {
-                if (isSelected) {
-                  _selectedIds.remove(person.id);
-                } else {
-                  _selectedIds.add(person.id);
-                }
-              });
-            },
           ),
+          subtitle: _buildCardSubtitle(person, badges),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => context.push('/persons/edit/${person.id}'),
+          onLongPress: () => _toggleSelection(person.id, !isSelected),
         );
       },
     );
@@ -644,18 +786,13 @@ class _PersonDataTableState extends ConsumerState<_PersonDataTable> {
         ),
       ],
       rows: sorted.map((person) {
-        return DataRow(
+        return DataRow2(
           selected: _selectedIds.contains(person.id),
-          onSelectChanged: (selected) {
-            setState(() {
-              if (selected == true) {
-                _selectedIds.add(person.id);
-              } else {
-                _selectedIds.remove(person.id);
-              }
-            });
-          },
+          onSelectChanged: (selected) =>
+              _toggleSelection(person.id, selected ?? false),
           onLongPress: () => context.push('/persons/edit/${person.id}'),
+          onSecondaryTapDown: (details) =>
+              _showRowMenu(person, details.globalPosition),
           cells: [
             DataCell(
               Text(
@@ -688,13 +825,7 @@ class _PersonDataTableState extends ConsumerState<_PersonDataTable> {
             DataCell(Center(child: _roleBadge(person.congregationRole))),
             DataCell(Center(child: _pioneerBadge(person.pioneerType))),
             DataCell(
-              Center(
-                child: Icon(
-                  person.isActive ? Icons.check_circle : Icons.cancel,
-                  color: person.isActive ? Colors.green : Colors.red,
-                  size: 18,
-                ),
-              ),
+              Center(child: ActiveStatusIcon(isActive: person.isActive)),
             ),
           ],
         );
@@ -703,6 +834,7 @@ class _PersonDataTableState extends ConsumerState<_PersonDataTable> {
   }
 
   Widget? _buildCardSubtitle(Person person, List<Widget> badges) {
+    if (!person.isActive) badges = [const InactiveLabel(), ...badges];
     final otherNames = person.otherNames.trim();
     final baptismDate = person.baptismDate;
     if (otherNames.isEmpty && baptismDate == null && badges.isEmpty) {
@@ -823,7 +955,58 @@ class _PersonDataTableState extends ConsumerState<_PersonDataTable> {
     });
   }
 
-  Future<void> _exportSelected(BuildContext context) async {
+  Future<void> _showRowMenu(Person person, Offset globalPosition) async {
+    final overlay =
+        Overlay.of(context).context.findRenderObject()! as RenderBox;
+    final action = await showMenu<_PublisherAction>(
+      context: context,
+      position: RelativeRect.fromRect(
+        overlay.globalToLocal(globalPosition) & const Size(1, 1),
+        Offset.zero & overlay.size,
+      ),
+      items: [
+        AppPopupMenuItem(
+          value: _PublisherAction.edit,
+          icon: Icons.edit_outlined,
+          label: 'Edit',
+        ),
+        AppPopupMenuItem(
+          value: _PublisherAction.exportRecords,
+          icon: Icons.description,
+          label: 'Export Record (S-21)',
+        ),
+        const PopupMenuDivider(),
+        AppPopupMenuItem(
+          value: _PublisherAction.archive,
+          icon: Icons.inventory_2_outlined,
+          label: 'Archive',
+        ),
+        AppPopupMenuItem(
+          value: _PublisherAction.moveToTrash,
+          icon: Icons.delete_outline,
+          label: 'Move to Trash',
+        ),
+      ],
+    );
+    if (action != null && mounted) {
+      _runAction(context, action, {person.id});
+    }
+  }
+
+  void _runAction(BuildContext context, _PublisherAction action, Set<int> ids) {
+    switch (action) {
+      case _PublisherAction.edit:
+        context.push('/persons/edit/${ids.single}');
+      case _PublisherAction.exportRecords:
+        _export(context, ids);
+      case _PublisherAction.archive:
+        _archive(context, ids);
+      case _PublisherAction.moveToTrash:
+        _moveToTrash(context, ids);
+    }
+  }
+
+  Future<void> _export(BuildContext context, Set<int> ids) async {
     final svc = ReportService(
       ref.read(databaseProvider),
       congregationId: ref.read(currentCongregationIdProvider),
@@ -831,11 +1014,11 @@ class _PersonDataTableState extends ConsumerState<_PersonDataTable> {
     await _exportPublisherRecordsFor(
       context,
       svc,
-      personIds: Set<int>.from(_selectedIds),
+      personIds: Set<int>.from(ids),
     );
   }
 
-  Future<void> _archiveSelected(BuildContext context) async {
+  Future<void> _archive(BuildContext context, Set<int> ids) async {
     var selectedReason = PersonArchiveReason.transferredOut;
     var selectedDate = DateTime.now();
     final request = await showDialog<_ArchiveRequest>(
@@ -843,6 +1026,7 @@ class _PersonDataTableState extends ConsumerState<_PersonDataTable> {
       builder: (dialogContext) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
           title: const Text('Archive Publishers'),
+          scrollable: true,
           content: SizedBox(
             width: 420,
             child: Column(
@@ -850,17 +1034,15 @@ class _PersonDataTableState extends ConsumerState<_PersonDataTable> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Text(
-                  'Archive ${_selectedIds.length} publisher(s). Their records '
+                  'Archive ${ids.length} publisher(s). Their records '
                   'will be preserved but excluded from current lists, groups, '
                   'reports, and statistics.',
                 ),
                 const SizedBox(height: 20),
                 DropdownButtonFormField<PersonArchiveReason>(
+                  isExpanded: true,
                   initialValue: selectedReason,
-                  decoration: const InputDecoration(
-                    labelText: 'Reason',
-                    border: OutlineInputBorder(),
-                  ),
+                  decoration: const InputDecoration(labelText: 'Reason'),
                   items: PersonArchiveReason.values
                       .map(
                         (reason) => DropdownMenuItem(
@@ -917,22 +1099,22 @@ class _PersonDataTableState extends ConsumerState<_PersonDataTable> {
     );
 
     if (request == null || !mounted) return;
-    final ids = _selectedIds.toList();
+    final targets = ids.toList();
     try {
       final db = ref.read(databaseProvider);
-      for (final id in ids) {
+      for (final id in targets) {
         await db.archivePerson(
           id,
           reason: request.reason,
           archivedAt: request.archivedAt,
         );
       }
-      setState(() => _selectedIds.clear());
+      setState(() => _selectedIds.removeAll(targets));
       ref.invalidate(personsProvider);
       ref.invalidate(archivedPersonsProvider);
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('${ids.length} publisher(s) archived.')),
+          SnackBar(content: Text('${targets.length} publisher(s) archived.')),
         );
       }
     } catch (error) {
@@ -944,13 +1126,13 @@ class _PersonDataTableState extends ConsumerState<_PersonDataTable> {
     }
   }
 
-  Future<void> _moveSelectedToTrash(BuildContext context) async {
+  Future<void> _moveToTrash(BuildContext context, Set<int> ids) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('Move Publishers to Trash?'),
         content: Text(
-          'Move ${_selectedIds.length} publisher(s) to Trash? Their records '
+          'Move ${ids.length} publisher(s) to Trash? Their records '
           'will be hidden but can be restored later.',
         ),
         actions: [
@@ -967,18 +1149,20 @@ class _PersonDataTableState extends ConsumerState<_PersonDataTable> {
     );
     if (confirmed != true || !mounted) return;
 
-    final ids = _selectedIds.toList();
+    final targets = ids.toList();
     try {
       final db = ref.read(databaseProvider);
-      for (final id in ids) {
+      for (final id in targets) {
         await db.movePersonToTrash(id);
       }
-      setState(() => _selectedIds.clear());
+      setState(() => _selectedIds.removeAll(targets));
       ref.invalidate(personsProvider);
       ref.invalidate(trashedPersonsProvider);
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('${ids.length} publisher(s) moved to Trash.')),
+          SnackBar(
+            content: Text('${targets.length} publisher(s) moved to Trash.'),
+          ),
         );
       }
     } catch (error) {
@@ -1084,7 +1268,13 @@ Future<T> _runWithProgress<T>(
   }
 }
 
-enum _SelectedPublisherAction { exportRecords, archive, moveToTrash }
+enum _PublisherAction { edit, exportRecords, archive, moveToTrash }
+
+/// Lets the screen's keyboard shortcuts reach the table's selection.
+class _TableCommands {
+  VoidCallback? selectAll;
+  VoidCallback? clearSelection;
+}
 
 class _ArchiveRequest {
   const _ArchiveRequest({required this.reason, required this.archivedAt});
@@ -1115,7 +1305,7 @@ class _PersonListOptionsDialogState extends State<_PersonListOptionsDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Filter and Sort Persons'),
+      title: const Text('Filter and Sort Publishers'),
       contentPadding: const EdgeInsets.only(top: 8),
       content: SizedBox(
         key: const ValueKey('person-list-options-content'),
@@ -1128,9 +1318,9 @@ class _PersonListOptionsDialogState extends State<_PersonListOptionsDialog> {
               SwitchListTile.adaptive(
                 key: const ValueKey('person-list-include-inactive'),
                 contentPadding: const EdgeInsets.symmetric(horizontal: 24),
-                title: const Text('Include inactive persons'),
+                title: const Text('Include inactive publishers'),
                 subtitle: const Text(
-                  'Turn off to show active congregation persons only.',
+                  'Turn off to show active publishers only.',
                 ),
                 value: _options.includeInactive,
                 onChanged: (value) => setState(
@@ -1242,10 +1432,7 @@ class _PersonListOptionsDialogState extends State<_PersonListOptionsDialog> {
       key: ValueKey('$label-$value'),
       initialValue: value,
       isExpanded: true,
-      decoration: InputDecoration(
-        labelText: label,
-        border: const OutlineInputBorder(),
-      ),
+      decoration: InputDecoration(labelText: label),
       items: values
           .map(
             (item) =>
@@ -1297,6 +1484,38 @@ class _PersonListOptionsDialogState extends State<_PersonListOptionsDialog> {
     PersonSortField.pioneerType => 'Pioneer Assignment',
     PersonSortField.activeStatus => 'Active Status',
   };
+}
+
+class _InitialsAvatar extends StatelessWidget {
+  const _InitialsAvatar({required this.person, required this.selected});
+
+  final Person person;
+  final bool selected;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    if (selected) {
+      return CircleAvatar(
+        backgroundColor: colors.primary,
+        foregroundColor: colors.onPrimary,
+        child: const Icon(Icons.check),
+      );
+    }
+    final initials = [
+      person.firstName,
+      person.lastName,
+    ].where((name) => name.isNotEmpty).map((name) => name[0]).join();
+    return CircleAvatar(
+      backgroundColor: person.isActive
+          ? colors.primaryContainer
+          : colors.surfaceContainerHighest,
+      foregroundColor: person.isActive
+          ? colors.onPrimaryContainer
+          : colors.onSurfaceVariant,
+      child: Text(initials.toUpperCase()),
+    );
+  }
 }
 
 class _PublisherListFooter extends StatelessWidget {

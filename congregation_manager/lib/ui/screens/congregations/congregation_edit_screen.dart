@@ -1,9 +1,13 @@
 import 'package:drift/drift.dart' as drift;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 import 'package:congregation_manager/data/database.dart';
 import 'package:congregation_manager/providers/congregation_providers.dart';
 import 'package:congregation_manager/providers/database_provider.dart';
+import 'package:congregation_manager/ui/theme/layout.dart';
+import 'package:congregation_manager/ui/widgets/screen_shortcuts.dart';
+import 'package:congregation_manager/ui/widgets/section_label.dart';
 
 class CongregationEditScreen extends ConsumerStatefulWidget {
   final int? congregationId;
@@ -72,33 +76,44 @@ class _CongregationEditScreenState
   Widget build(BuildContext context) {
     final isNew = widget.congregationId == null;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(isNew ? 'New Congregation' : 'Edit Congregation'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.check),
-            onPressed: _save,
-          ),
-        ],
-      ),
-      body: !_loaded
-          ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(24),
-              child: Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 600),
+    return ScreenShortcuts(
+      bindings: {
+        commandKey(LogicalKeyboardKey.keyS): ScreenShortcut(() {
+          if (_loaded) _save();
+        }, whileEditing: true),
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(isNew ? 'New Congregation' : 'Edit Congregation'),
+          actions: [
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: FilledButton.icon(
+                icon: const Icon(Icons.save),
+                label: const Text('Save'),
+                onPressed: _loaded && !_saving ? _save : null,
+              ),
+            ),
+          ],
+        ),
+        body: !_loaded
+            ? const Center(child: CircularProgressIndicator())
+            : ReadableWidth(
+                child: SingleChildScrollView(
+                  padding: AppSpacing.page,
                   child: Form(
                     key: _formKey,
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
+                        const SectionLabel(
+                          'Congregation',
+                          padding: EdgeInsets.only(bottom: 16),
+                        ),
                         TextFormField(
                           controller: _nameController,
                           decoration: const InputDecoration(
                             labelText: 'Congregation Name *',
-                            border: OutlineInputBorder(),
                             prefixIcon: Icon(Icons.group),
                           ),
                           validator: (v) => (v == null || v.trim().isEmpty)
@@ -111,7 +126,6 @@ class _CongregationEditScreenState
                           controller: _numberController,
                           decoration: const InputDecoration(
                             labelText: 'Congregation Number',
-                            border: OutlineInputBorder(),
                             prefixIcon: Icon(Icons.numbers),
                           ),
                           textInputAction: TextInputAction.next,
@@ -121,7 +135,6 @@ class _CongregationEditScreenState
                           controller: _cityController,
                           decoration: const InputDecoration(
                             labelText: 'City',
-                            border: OutlineInputBorder(),
                             prefixIcon: Icon(Icons.location_city),
                           ),
                           textInputAction: TextInputAction.next,
@@ -131,22 +144,18 @@ class _CongregationEditScreenState
                           controller: _circuitController,
                           decoration: const InputDecoration(
                             labelText: 'Circuit Number',
-                            border: OutlineInputBorder(),
                             prefixIcon: Icon(Icons.route),
                           ),
                           textInputAction: TextInputAction.next,
                         ),
-                        const SizedBox(height: 24),
-                        Text(
-                          'Circuit Overseer',
-                          style: Theme.of(context).textTheme.titleMedium,
+                        const SectionLabel(
+                          'Circuit overseer',
+                          padding: EdgeInsets.symmetric(vertical: 16),
                         ),
-                        const SizedBox(height: 12),
                         TextFormField(
                           controller: _coNameController,
                           decoration: const InputDecoration(
                             labelText: 'Name',
-                            border: OutlineInputBorder(),
                             prefixIcon: Icon(Icons.person),
                           ),
                           textInputAction: TextInputAction.next,
@@ -156,7 +165,6 @@ class _CongregationEditScreenState
                           controller: _coSpouseController,
                           decoration: const InputDecoration(
                             labelText: "Spouse's Name",
-                            border: OutlineInputBorder(),
                             prefixIcon: Icon(Icons.people),
                           ),
                           textInputAction: TextInputAction.next,
@@ -166,7 +174,6 @@ class _CongregationEditScreenState
                           controller: _coPhoneController,
                           decoration: const InputDecoration(
                             labelText: 'Phone',
-                            border: OutlineInputBorder(),
                             prefixIcon: Icon(Icons.phone),
                           ),
                           keyboardType: TextInputType.phone,
@@ -177,14 +184,13 @@ class _CongregationEditScreenState
                           controller: _coEmailController,
                           decoration: const InputDecoration(
                             labelText: 'Email',
-                            border: OutlineInputBorder(),
                             prefixIcon: Icon(Icons.email),
                           ),
                           keyboardType: TextInputType.emailAddress,
                           validator: (v) =>
                               (v == null || v.trim().isEmpty || v.contains('@'))
-                                  ? null
-                                  : 'Enter a valid email address',
+                              ? null
+                              : 'Enter a valid email address',
                           textInputAction: TextInputAction.next,
                         ),
                         const SizedBox(height: 12),
@@ -192,7 +198,6 @@ class _CongregationEditScreenState
                           controller: _coAddressController,
                           decoration: const InputDecoration(
                             labelText: 'Address',
-                            border: OutlineInputBorder(),
                             prefixIcon: Icon(Icons.home),
                           ),
                           textInputAction: TextInputAction.done,
@@ -203,43 +208,71 @@ class _CongregationEditScreenState
                   ),
                 ),
               ),
-            ),
+      ),
     );
   }
 
+  bool _saving = false;
+
   Future<void> _save() async {
+    if (_saving) return;
+    setState(() => _saving = true);
+    try {
+      await _persist();
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not save changes. Please try again.'),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _persist() async {
     if (!_formKey.currentState!.validate()) return;
 
     final db = ref.read(databaseProvider);
 
     if (widget.congregationId == null) {
-      final id = await db.insertCongregation(CongregationsCompanion.insert(
-        name: drift.Value(_nameController.text.trim()),
-        number: drift.Value(_numberController.text.trim()),
-        city: drift.Value(_cityController.text.trim()),
-        circuitNumber: drift.Value(_circuitController.text.trim()),
-        circuitOverseerName: drift.Value(_coNameController.text.trim()),
-        circuitOverseerSpouseName: drift.Value(_coSpouseController.text.trim()),
-        circuitOverseerPhone: drift.Value(_coPhoneController.text.trim()),
-        circuitOverseerEmail: drift.Value(_coEmailController.text.trim()),
-        circuitOverseerAddress: drift.Value(_coAddressController.text.trim()),
-      ));
+      final id = await db.insertCongregation(
+        CongregationsCompanion.insert(
+          name: drift.Value(_nameController.text.trim()),
+          number: drift.Value(_numberController.text.trim()),
+          city: drift.Value(_cityController.text.trim()),
+          circuitNumber: drift.Value(_circuitController.text.trim()),
+          circuitOverseerName: drift.Value(_coNameController.text.trim()),
+          circuitOverseerSpouseName: drift.Value(
+            _coSpouseController.text.trim(),
+          ),
+          circuitOverseerPhone: drift.Value(_coPhoneController.text.trim()),
+          circuitOverseerEmail: drift.Value(_coEmailController.text.trim()),
+          circuitOverseerAddress: drift.Value(_coAddressController.text.trim()),
+        ),
+      );
       // Auto-select the newly created congregation
       await ref.read(currentCongregationIdProvider.notifier).set(id);
     } else {
-      await db.updateCongregation(CongregationsCompanion(
-        id: drift.Value(widget.congregationId!),
-        name: drift.Value(_nameController.text.trim()),
-        number: drift.Value(_numberController.text.trim()),
-        city: drift.Value(_cityController.text.trim()),
-        circuitNumber: drift.Value(_circuitController.text.trim()),
-        circuitOverseerName: drift.Value(_coNameController.text.trim()),
-        circuitOverseerSpouseName: drift.Value(_coSpouseController.text.trim()),
-        circuitOverseerPhone: drift.Value(_coPhoneController.text.trim()),
-        circuitOverseerEmail: drift.Value(_coEmailController.text.trim()),
-        circuitOverseerAddress: drift.Value(_coAddressController.text.trim()),
-        updatedAt: drift.Value(DateTime.now()),
-      ));
+      await db.updateCongregation(
+        CongregationsCompanion(
+          id: drift.Value(widget.congregationId!),
+          name: drift.Value(_nameController.text.trim()),
+          number: drift.Value(_numberController.text.trim()),
+          city: drift.Value(_cityController.text.trim()),
+          circuitNumber: drift.Value(_circuitController.text.trim()),
+          circuitOverseerName: drift.Value(_coNameController.text.trim()),
+          circuitOverseerSpouseName: drift.Value(
+            _coSpouseController.text.trim(),
+          ),
+          circuitOverseerPhone: drift.Value(_coPhoneController.text.trim()),
+          circuitOverseerEmail: drift.Value(_coEmailController.text.trim()),
+          circuitOverseerAddress: drift.Value(_coAddressController.text.trim()),
+          updatedAt: drift.Value(DateTime.now()),
+        ),
+      );
     }
 
     ref.invalidate(congregationsProvider);

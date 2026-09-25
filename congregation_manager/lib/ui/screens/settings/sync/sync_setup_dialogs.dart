@@ -99,7 +99,6 @@ class _CreateVaultDialogState extends ConsumerState<_CreateVaultDialog> {
                   decoration: const InputDecoration(
                     labelText: 'Registration secret',
                     helperText: 'Set by the server administrator.',
-                    border: OutlineInputBorder(),
                     prefixIcon: Icon(Icons.vpn_key_outlined),
                   ),
                   validator: (value) => (value ?? '').trim().isEmpty
@@ -249,7 +248,6 @@ class _JoinDialogState extends ConsumerState<_JoinDialog> {
                   style: const TextStyle(fontFamily: 'monospace'),
                   decoration: InputDecoration(
                     labelText: recovery ? 'Recovery code' : 'Invite',
-                    border: const OutlineInputBorder(),
                     alignLabelWithHint: true,
                     suffixIcon: IconButton(
                       tooltip: 'Paste',
@@ -397,7 +395,6 @@ class _ServerUrlField extends StatelessWidget {
     decoration: const InputDecoration(
       labelText: 'Server address',
       hintText: 'https://sync.example.org',
-      border: OutlineInputBorder(),
       prefixIcon: Icon(Icons.link),
     ),
     validator: (value) {
@@ -425,7 +422,6 @@ class _DeviceLabelField extends StatelessWidget {
     decoration: const InputDecoration(
       labelText: 'Name for this device',
       helperText: 'Shown in the device list. Stored encrypted.',
-      border: OutlineInputBorder(),
       prefixIcon: Icon(Icons.devices_outlined),
     ),
     validator: (value) =>

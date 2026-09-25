@@ -98,15 +98,10 @@ class _ExportRecordsDialogState extends State<ExportRecordsDialog> {
 
             // Service year dropdown
             DropdownButtonFormField<int>(
-              decoration: const InputDecoration(
-                labelText: 'Service Year',
-                border: OutlineInputBorder(),
-              ),
+              decoration: const InputDecoration(labelText: 'Service Year'),
               initialValue: _selectedYear,
               items: _serviceYears
-                  .map(
-                    (y) => DropdownMenuItem(value: y, child: Text('$y')),
-                  )
+                  .map((y) => DropdownMenuItem(value: y, child: Text('$y')))
                   .toList(),
               onChanged: (v) => setState(() => _selectedYear = v),
             ),
@@ -189,7 +184,6 @@ class _ExportRecordsDialogState extends State<ExportRecordsDialog> {
               controller: _templateController,
               decoration: const InputDecoration(
                 labelText: 'Record name template',
-                border: OutlineInputBorder(),
                 helperText: '{FirstName}, {LastName}, {FullName}',
               ),
             ),

@@ -277,7 +277,14 @@ class _InfoRow extends StatelessWidget {
     child: Row(
       children: [
         Expanded(child: Text(label)),
-        Text(value, style: Theme.of(context).textTheme.bodyMedium),
+        Flexible(
+          flex: 2,
+          child: Text(
+            value,
+            textAlign: TextAlign.end,
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+        ),
         ?action,
       ],
     ),

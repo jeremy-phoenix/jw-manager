@@ -9,6 +9,7 @@ import 'package:congregation_manager/providers/congregation_providers.dart';
 import 'package:congregation_manager/providers/database_provider.dart';
 import 'package:congregation_manager/providers/service_report_providers.dart';
 import 'package:congregation_manager/providers/settings_providers.dart';
+import 'package:congregation_manager/ui/theme/layout.dart';
 
 class CongregationAnalysisDialog extends ConsumerStatefulWidget {
   final int serviceYear;
@@ -131,7 +132,6 @@ class _CongregationAnalysisDialogState
                             initialValue: _year,
                             decoration: const InputDecoration(
                               labelText: 'Service year',
-                              border: OutlineInputBorder(),
                             ),
                             items: [
                               for (final year in years)
@@ -151,7 +151,6 @@ class _CongregationAnalysisDialogState
                             isExpanded: true,
                             decoration: const InputDecoration(
                               labelText: 'Through month',
-                              border: OutlineInputBorder(),
                             ),
                             items: [
                               for (final month in [
@@ -247,7 +246,9 @@ class _CongregationAnalysisDialogState
                           children: [
                             LayoutBuilder(
                               builder: (context, constraints) {
-                                final wide = constraints.maxWidth >= 650;
+                                final wide =
+                                    constraints.maxWidth >=
+                                    AppBreakpoints.medium;
                                 final cards = [
                                   for (var i = 0; i < _titles.length; i++)
                                     _AnalysisCard(

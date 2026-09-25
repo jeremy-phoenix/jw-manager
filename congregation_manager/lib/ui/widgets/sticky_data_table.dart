@@ -33,25 +33,42 @@ class StickyDataTable extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    // Inline cell editors stay borderless instead of taking the app's filled
+    // field style; an underline marks the cell being edited.
+    final cellTheme = theme.copyWith(
+      inputDecorationTheme: InputDecorationTheme(
+        isDense: true,
+        border: InputBorder.none,
+        enabledBorder: InputBorder.none,
+        focusedBorder: UnderlineInputBorder(
+          borderSide: BorderSide(color: theme.colorScheme.primary, width: 2),
+        ),
+      ),
+    );
+
     return LayoutBuilder(
       builder: (context, constraints) {
         final tableMinWidth = constraints.hasBoundedWidth
             ? math.max(constraints.maxWidth, minWidth)
             : minWidth;
 
-        return DataTable2(
-          fixedTopRows: 1,
-          minWidth: tableMinWidth,
-          sortColumnIndex: sortColumnIndex,
-          sortAscending: sortAscending,
-          showCheckboxColumn: showCheckboxColumn,
-          columnSpacing: columnSpacing,
-          horizontalMargin: horizontalMargin,
-          checkboxHorizontalMargin: checkboxHorizontalMargin,
-          headingCheckboxTheme: headingCheckboxTheme,
-          datarowCheckboxTheme: dataRowCheckboxTheme,
-          columns: columns,
-          rows: rows,
+        return Theme(
+          data: cellTheme,
+          child: DataTable2(
+            fixedTopRows: 1,
+            minWidth: tableMinWidth,
+            sortColumnIndex: sortColumnIndex,
+            sortAscending: sortAscending,
+            showCheckboxColumn: showCheckboxColumn,
+            columnSpacing: columnSpacing,
+            horizontalMargin: horizontalMargin,
+            checkboxHorizontalMargin: checkboxHorizontalMargin,
+            headingCheckboxTheme: headingCheckboxTheme,
+            datarowCheckboxTheme: dataRowCheckboxTheme,
+            columns: columns,
+            rows: rows,
+          ),
         );
       },
     );

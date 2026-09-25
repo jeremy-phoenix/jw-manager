@@ -18,12 +18,30 @@ import 'package:congregation_manager/ui/dialogs/congregation_analysis_dialog.dar
 import 'package:congregation_manager/ui/widgets/app_popup_menu_item.dart';
 import 'package:congregation_manager/ui/widgets/search_text_field.dart';
 import 'package:congregation_manager/ui/widgets/sticky_data_table.dart';
+import 'package:congregation_manager/providers/person_providers.dart';
+import 'package:congregation_manager/ui/theme/layout.dart';
+import 'package:congregation_manager/ui/widgets/toolbar_actions.dart';
+import 'package:congregation_manager/ui/widgets/empty_state.dart';
+import 'package:congregation_manager/ui/widgets/screen_shortcuts.dart';
 
-class ServiceReportListScreen extends ConsumerWidget {
+class ServiceReportListScreen extends ConsumerStatefulWidget {
   const ServiceReportListScreen({super.key});
+  @override
+  ConsumerState<ServiceReportListScreen> createState() =>
+      _ServiceReportListScreenState();
+}
+
+class _ServiceReportListScreenState
+    extends ConsumerState<ServiceReportListScreen> {
+  final _searchFocus = FocusNode();
+  @override
+  void dispose() {
+    _searchFocus.dispose();
+    super.dispose();
+  }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final reportsAsync = ref.watch(filteredServiceReportsProvider);
     final selectedYear = ref.watch(selectedYearProvider);
     final selectedMonth = ref.watch(selectedMonthProvider);
@@ -32,236 +50,272 @@ class ServiceReportListScreen extends ConsumerWidget {
     final searchQuery = ref.watch(serviceReportSearchQueryProvider);
     final serviceYears = ref.watch(serviceYearsProvider);
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Service Reports'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.bar_chart),
-            tooltip: "Month's Statistics",
-            onPressed: () => _showMonthStatistics(context, ref),
-          ),
-          IconButton(
-            icon: const Icon(Icons.analytics),
-            tooltip: 'Congregation Analysis',
-            onPressed: () => _showCongregationAnalysis(context, ref),
-          ),
-          PopupMenuButton<String>(
-            icon: const Icon(Icons.print),
-            tooltip: 'Export Reports',
-            onSelected: (value) {
-              final svc = ReportService(
-                ref.read(databaseProvider),
-                congregationId: ref.read(currentCongregationIdProvider),
+    final compact = MediaQuery.sizeOf(context).width < AppBreakpoints.medium;
+    final toolbarActions = <Widget>[
+      ToolbarAction(
+        icon: Icons.bar_chart,
+        label: 'Statistics',
+        tooltip: "Month's Statistics",
+        onPressed: () => _showMonthStatistics(context, ref),
+      ),
+      ToolbarAction(
+        icon: Icons.analytics,
+        label: 'Analysis',
+        tooltip: 'Congregation Analysis',
+        onPressed: () => _showCongregationAnalysis(context, ref),
+      ),
+      ToolbarMenu<String>(
+        icon: Icons.print,
+        label: 'PDF',
+        tooltip: 'Export Reports',
+        onSelected: (value) {
+          final svc = ReportService(
+            ref.read(databaseProvider),
+            congregationId: ref.read(currentCongregationIdProvider),
+          );
+          final year = selectedYear;
+          final month = selectedMonth;
+          switch (value) {
+            case 'reports_by_group':
+              svc.previewServiceReportsByGroup(
+                context,
+                year: year,
+                month: month,
               );
-              final year = selectedYear;
-              final month = selectedMonth;
-              switch (value) {
-                case 'reports_by_group':
-                  svc.previewServiceReportsByGroup(
-                    context,
-                    year: year,
-                    month: month,
-                  );
-                case 'group_totals':
-                  svc.previewFieldServiceGroupSummary(
-                    context,
-                    year: year,
-                    month: month,
-                  );
-                case 'pioneer_hours':
-                  svc.previewPioneerHours(context, year: year, month: month);
-                case 'missing_by_group':
-                  svc.previewMissingReportsByGroup(
-                    context,
-                    year: year,
-                    month: month,
-                  );
-                case 'ministry_totals':
-                  svc.previewMinistryTotals(context, serviceYear: year);
-                case 'not_shared':
-                  svc.previewNotSharedInMinistry(
-                    context,
-                    year: year,
-                    month: month,
-                  );
-                case 'not_shared_group':
-                  svc.previewNotSharedByGroup(
-                    context,
-                    year: year,
-                    month: month,
-                  );
-                case 'delete_reports':
-                  _deleteReports(context, ref);
-              }
-            },
-            itemBuilder: (_) => [
-              AppPopupMenuItem(
-                value: 'reports_by_group',
-                icon: Icons.groups,
-                label: 'Reports by Group',
-              ),
-              AppPopupMenuItem(
-                value: 'group_totals',
-                icon: Icons.summarize,
-                label: 'Group Totals Summary',
-              ),
-              AppPopupMenuItem(
-                value: 'pioneer_hours',
-                icon: Icons.star,
-                label: 'Pioneer Hours',
-              ),
-              AppPopupMenuItem(
-                value: 'missing_by_group',
-                icon: Icons.report_off,
-                label: 'Missing Reports by Group',
-              ),
-              AppPopupMenuItem(
-                value: 'ministry_totals',
-                icon: Icons.stacked_line_chart,
-                label: 'Ministry Totals (Service Year)',
-              ),
-              PopupMenuDivider(),
-              AppPopupMenuItem(
-                value: 'not_shared',
-                icon: Icons.person_off,
-                label: 'Not Shared in Ministry',
-              ),
-              AppPopupMenuItem(
-                value: 'not_shared_group',
-                icon: Icons.group_off,
-                label: 'Not Shared by Group',
-              ),
-              PopupMenuDivider(),
-              AppPopupMenuItem(
-                value: 'delete_reports',
-                icon: Icons.delete_outline,
-                label: 'Delete Reports...',
-                color: Colors.red,
-              ),
-            ],
-          ),
-          PopupMenuButton<String>(
-            icon: const Icon(Icons.table_chart),
-            tooltip: 'Export Excel',
-            onSelected: (value) {
-              final svc = ReportService(
-                ref.read(databaseProvider),
-                congregationId: ref.read(currentCongregationIdProvider),
+            case 'group_totals':
+              svc.previewFieldServiceGroupSummary(
+                context,
+                year: year,
+                month: month,
               );
-              final year = selectedYear;
-              final month = selectedMonth;
-              final suffix = _periodFileSuffix(year, month);
-              switch (value) {
-                case 'reports_by_group':
-                  _exportExcelReport(
-                    context,
-                    build: () => svc.buildServiceReportsByGroupExcelBytes(
-                      year: year,
-                      month: month,
-                    ),
-                    fileName: 'Reports_by_Group_$suffix.xlsx',
-                  );
-                case 'group_totals':
-                  _exportExcelReport(
-                    context,
-                    build: () => svc.buildFieldServiceGroupSummaryExcelBytes(
-                      year: year,
-                      month: month,
-                    ),
-                    fileName: 'Group_Totals_$suffix.xlsx',
-                  );
-                case 'pioneer_hours':
-                  _exportExcelReport(
-                    context,
-                    build: () => svc.buildPioneerHoursExcelBytes(
-                      year: year,
-                      month: month,
-                    ),
-                    fileName: 'Pioneer_Hours_$suffix.xlsx',
-                  );
-                case 'missing_by_group':
-                  _exportExcelReport(
-                    context,
-                    build: () => svc.buildMissingReportsByGroupExcelBytes(
-                      year: year,
-                      month: month,
-                    ),
-                    fileName: 'Missing_Reports_$suffix.xlsx',
-                  );
-                case 'ministry_totals':
-                  _exportExcelReport(
-                    context,
-                    build: () =>
-                        svc.buildMinistryTotalsExcelBytes(serviceYear: year),
-                    fileName: 'Ministry_Totals_$year.xlsx',
-                  );
-              }
-            },
-            itemBuilder: (_) => [
-              AppPopupMenuItem(
-                value: 'reports_by_group',
-                icon: Icons.groups,
-                label: 'Reports by Group',
-              ),
-              AppPopupMenuItem(
-                value: 'group_totals',
-                icon: Icons.summarize,
-                label: 'Group Totals Summary',
-              ),
-              AppPopupMenuItem(
-                value: 'pioneer_hours',
-                icon: Icons.star,
-                label: 'Pioneer Hours',
-              ),
-              AppPopupMenuItem(
-                value: 'missing_by_group',
-                icon: Icons.report_off,
-                label: 'Missing Reports by Group',
-              ),
-              AppPopupMenuItem(
-                value: 'ministry_totals',
-                icon: Icons.stacked_line_chart,
-                label: 'Ministry Totals (Service Year)',
-              ),
-            ],
+            case 'pioneer_hours':
+              svc.previewPioneerHours(context, year: year, month: month);
+            case 'missing_by_group':
+              svc.previewMissingReportsByGroup(
+                context,
+                year: year,
+                month: month,
+              );
+            case 'ministry_totals':
+              svc.previewMinistryTotals(context, serviceYear: year);
+            case 'not_shared':
+              svc.previewNotSharedInMinistry(context, year: year, month: month);
+            case 'not_shared_group':
+              svc.previewNotSharedByGroup(context, year: year, month: month);
+          }
+        },
+        itemBuilder: (_) => [
+          AppPopupMenuItem(
+            value: 'reports_by_group',
+            icon: Icons.groups,
+            label: 'Reports by Group',
           ),
-          IconButton(
-            icon: const Icon(Icons.playlist_add),
-            tooltip: 'Generate Reports for Period',
-            onPressed: () => _generateReports(context, ref),
+          AppPopupMenuItem(
+            value: 'group_totals',
+            icon: Icons.summarize,
+            label: 'Group Totals Summary',
+          ),
+          AppPopupMenuItem(
+            value: 'pioneer_hours',
+            icon: Icons.star,
+            label: 'Pioneer Hours',
+          ),
+          AppPopupMenuItem(
+            value: 'missing_by_group',
+            icon: Icons.report_off,
+            label: 'Missing Reports by Group',
+          ),
+          AppPopupMenuItem(
+            value: 'ministry_totals',
+            icon: Icons.stacked_line_chart,
+            label: 'Ministry Totals (Service Year)',
+          ),
+          PopupMenuDivider(),
+          AppPopupMenuItem(
+            value: 'not_shared',
+            icon: Icons.person_off,
+            label: 'Not Shared in Ministry',
+          ),
+          AppPopupMenuItem(
+            value: 'not_shared_group',
+            icon: Icons.group_off,
+            label: 'Not Shared by Group',
           ),
         ],
       ),
-      body: Column(
-        children: [
-          _buildFilters(
-            ref: ref,
-            selectedYear: selectedYear,
-            selectedMonth: selectedMonth,
-            showNotSharedOnly: showNotSharedOnly,
-            showInactivePublishers: showInactivePublishers,
-            searchQuery: searchQuery,
-            serviceYears: serviceYears,
+      ToolbarMenu<String>(
+        icon: Icons.table_chart,
+        label: 'Excel',
+        tooltip: 'Export Excel',
+        onSelected: (value) {
+          final svc = ReportService(
+            ref.read(databaseProvider),
+            congregationId: ref.read(currentCongregationIdProvider),
+          );
+          final year = selectedYear;
+          final month = selectedMonth;
+          final suffix = _periodFileSuffix(year, month);
+          switch (value) {
+            case 'reports_by_group':
+              _exportExcelReport(
+                context,
+                build: () => svc.buildServiceReportsByGroupExcelBytes(
+                  year: year,
+                  month: month,
+                ),
+                fileName: 'Reports_by_Group_$suffix.xlsx',
+              );
+            case 'group_totals':
+              _exportExcelReport(
+                context,
+                build: () => svc.buildFieldServiceGroupSummaryExcelBytes(
+                  year: year,
+                  month: month,
+                ),
+                fileName: 'Group_Totals_$suffix.xlsx',
+              );
+            case 'pioneer_hours':
+              _exportExcelReport(
+                context,
+                build: () =>
+                    svc.buildPioneerHoursExcelBytes(year: year, month: month),
+                fileName: 'Pioneer_Hours_$suffix.xlsx',
+              );
+            case 'missing_by_group':
+              _exportExcelReport(
+                context,
+                build: () => svc.buildMissingReportsByGroupExcelBytes(
+                  year: year,
+                  month: month,
+                ),
+                fileName: 'Missing_Reports_$suffix.xlsx',
+              );
+            case 'ministry_totals':
+              _exportExcelReport(
+                context,
+                build: () =>
+                    svc.buildMinistryTotalsExcelBytes(serviceYear: year),
+                fileName: 'Ministry_Totals_$year.xlsx',
+              );
+          }
+        },
+        itemBuilder: (_) => [
+          AppPopupMenuItem(
+            value: 'reports_by_group',
+            icon: Icons.groups,
+            label: 'Reports by Group',
           ),
-          Expanded(
-            child: reportsAsync.when(
-              data: (reports) {
-                if (reports.isEmpty) {
-                  return const Center(
-                    child: Text('No service reports for this period.'),
-                  );
-                }
-                return _ReportDataTable(
-                  reports: reports,
-                  searchQuery: searchQuery,
-                );
-              },
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (e, _) => Center(child: Text('Error: $e')),
-            ),
+          AppPopupMenuItem(
+            value: 'group_totals',
+            icon: Icons.summarize,
+            label: 'Group Totals Summary',
+          ),
+          AppPopupMenuItem(
+            value: 'pioneer_hours',
+            icon: Icons.star,
+            label: 'Pioneer Hours',
+          ),
+          AppPopupMenuItem(
+            value: 'missing_by_group',
+            icon: Icons.report_off,
+            label: 'Missing Reports by Group',
+          ),
+          AppPopupMenuItem(
+            value: 'ministry_totals',
+            icon: Icons.stacked_line_chart,
+            label: 'Ministry Totals (Service Year)',
           ),
         ],
+      ),
+      PopupMenuButton<String>(
+        tooltip: 'More actions',
+        itemBuilder: (_) => [
+          AppPopupMenuItem(
+            value: 'delete_reports',
+            icon: Icons.delete_outline,
+            label: 'Delete Reports...',
+            color: Theme.of(context).colorScheme.error,
+          ),
+        ],
+        onSelected: (_) => _deleteReports(context, ref),
+      ),
+      ToolbarAction.primary(
+        icon: Icons.playlist_add,
+        label: 'Generate',
+        tooltip: 'Generate Reports for Period',
+        onPressed: () => _generateReports(context, ref),
+      ),
+    ];
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Service Reports'),
+        actions: compact ? null : toolbarActions,
+        bottom: compact
+            ? PreferredSize(
+                preferredSize: const Size.fromHeight(48),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: toolbarActions,
+                ),
+              )
+            : null,
+      ),
+      body: ScreenShortcuts(
+        bindings: {
+          commandKey(LogicalKeyboardKey.keyF): ScreenShortcut(
+            () => _searchFocus.requestFocus(),
+            whileEditing: true,
+          ),
+          commandKey(LogicalKeyboardKey.keyN): ScreenShortcut(
+            () => _generateReports(context, ref),
+          ),
+        },
+        child: Column(
+          children: [
+            _buildFilters(
+              ref: ref,
+              selectedYear: selectedYear,
+              selectedMonth: selectedMonth,
+              showNotSharedOnly: showNotSharedOnly,
+              showInactivePublishers: showInactivePublishers,
+              searchQuery: searchQuery,
+              serviceYears: serviceYears,
+            ),
+            Expanded(
+              child: reportsAsync.when(
+                data: (reports) {
+                  if (reports.isEmpty) {
+                    return EmptyState(
+                      icon: Icons.assignment_outlined,
+                      title: 'No service reports for this period',
+                      message:
+                          'Adjust your filters or generate reports for this period.',
+                      action: FilledButton.icon(
+                        onPressed: () => _generateReports(context, ref),
+                        icon: const Icon(Icons.playlist_add),
+                        label: const Text('Generate Reports'),
+                      ),
+                    );
+                  }
+                  return _ReportDataTable(
+                    key: ValueKey(ref.watch(currentCongregationIdProvider)),
+                    reports: reports,
+                    searchQuery: searchQuery,
+                  );
+                },
+                loading: () => const Center(child: CircularProgressIndicator()),
+                error: (e, _) => EmptyState.error(
+                  title: 'Could not load service reports',
+                  error: e,
+                  action: TextButton(
+                    onPressed: () => ref.invalidate(serviceReportsProvider),
+                    child: const Text('Retry'),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -279,7 +333,7 @@ class ServiceReportListScreen extends ConsumerWidget {
       padding: const EdgeInsets.all(12),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final isCompact = constraints.maxWidth < 560;
+          final isCompact = constraints.maxWidth < AppBreakpoints.medium;
 
           if (isCompact) {
             return _buildCompactFilters(
@@ -316,9 +370,16 @@ class ServiceReportListScreen extends ConsumerWidget {
     required String searchQuery,
     required AsyncValue<List<int>> serviceYears,
   }) {
+    final stackPeriod =
+        MediaQuery.sizeOf(context).width < 440 ||
+        MediaQuery.textScalerOf(context).scale(16) > 20;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        if (stackPeriod) ...[
+          _buildYearSelector(ref, selectedYear, serviceYears),
+          const SizedBox(height: AppSpacing.sm),
+        ],
         Row(
           children: [
             _MonthNavButton(
@@ -327,12 +388,15 @@ class ServiceReportListScreen extends ConsumerWidget {
               onPressed: () => _changeMonth(ref, -1),
             ),
             const SizedBox(width: 8),
+            if (!stackPeriod) ...[
+              SizedBox(
+                width: 104,
+                child: _buildYearSelector(ref, selectedYear, serviceYears),
+              ),
+              const SizedBox(width: 8),
+            ],
             Expanded(
-              child: _buildYearSelector(ref, selectedYear, serviceYears),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              flex: 2,
+              flex: 3,
               child: _buildMonthSelector(ref, selectedYear, selectedMonth),
             ),
             const SizedBox(width: 8),
@@ -421,7 +485,11 @@ class ServiceReportListScreen extends ConsumerWidget {
       data: (years) => DropdownButtonFormField<int>(
         initialValue: selectedYear,
         isExpanded: true,
-        decoration: _filterDecoration('Service Year'),
+        decoration: _filterDecoration(
+          MediaQuery.sizeOf(context).width < AppBreakpoints.medium
+              ? 'Year'
+              : 'Service Year',
+        ),
         items: years
             .map(
               (year) => DropdownMenuItem(
@@ -450,6 +518,24 @@ class ServiceReportListScreen extends ConsumerWidget {
       initialValue: selectedMonth,
       isExpanded: true,
       decoration: _filterDecoration('Month'),
+      selectedItemBuilder:
+          MediaQuery.sizeOf(context).width < AppBreakpoints.medium
+          ? (_) => ServiceMonth.values
+                .map(
+                  (month) => Text(
+                    formatServiceMonth(
+                      selectedYear,
+                      month.monthNumber,
+                    ).replaceFirst(
+                      month.displayName,
+                      month.displayName.substring(0, 3),
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                )
+                .toList()
+          : null,
       items: ServiceMonth.values
           .map(
             (month) => DropdownMenuItem(
@@ -471,6 +557,7 @@ class ServiceReportListScreen extends ConsumerWidget {
 
   Widget _buildSearchField(WidgetRef ref, String searchQuery) {
     return SearchTextField(
+      focusNode: _searchFocus,
       query: searchQuery,
       hintText: 'Search reports...',
       onChanged: (value) =>
@@ -524,7 +611,6 @@ class ServiceReportListScreen extends ConsumerWidget {
   InputDecoration _filterDecoration(String label) {
     return InputDecoration(
       labelText: label,
-      border: const OutlineInputBorder(),
       isDense: true,
       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
     );
@@ -602,11 +688,6 @@ class _MonthNavButton extends StatelessWidget {
     return IconButton.filledTonal(
       icon: Icon(icon),
       tooltip: tooltip,
-      style: IconButton.styleFrom(
-        fixedSize: const Size.square(40),
-        minimumSize: const Size.square(40),
-        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-      ),
       onPressed: onPressed,
     );
   }
@@ -623,7 +704,6 @@ class _DisabledFilterField extends StatelessWidget {
     return InputDecorator(
       decoration: InputDecoration(
         labelText: label,
-        border: const OutlineInputBorder(),
         isDense: true,
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 12,
@@ -682,6 +762,7 @@ Future<void> _generateReports(BuildContext context, WidgetRef ref) async {
       var scope = 'month';
       return StatefulBuilder(
         builder: (ctx, setState) => AlertDialog(
+          scrollable: true,
           title: const Text('Generate Reports'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
@@ -692,6 +773,9 @@ Future<void> _generateReports(BuildContext context, WidgetRef ref) async {
               ),
               const SizedBox(height: 16),
               SegmentedButton<String>(
+                direction: MediaQuery.sizeOf(ctx).width < AppBreakpoints.medium
+                    ? Axis.vertical
+                    : Axis.horizontal,
                 segments: [
                   ButtonSegment(value: 'month', label: Text(monthLabel)),
                   ButtonSegment(
@@ -745,6 +829,7 @@ Future<void> _deleteReports(BuildContext context, WidgetRef ref) async {
       var scope = 'month';
       return StatefulBuilder(
         builder: (ctx, setState) => AlertDialog(
+          scrollable: true,
           title: const Text('Delete Reports'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
@@ -755,6 +840,9 @@ Future<void> _deleteReports(BuildContext context, WidgetRef ref) async {
               ),
               const SizedBox(height: 16),
               SegmentedButton<String>(
+                direction: MediaQuery.sizeOf(ctx).width < AppBreakpoints.medium
+                    ? Axis.vertical
+                    : Axis.horizontal,
                 segments: [
                   ButtonSegment(value: 'month', label: Text(monthLabel)),
                   ButtonSegment(
@@ -776,6 +864,7 @@ Future<void> _deleteReports(BuildContext context, WidgetRef ref) async {
             FilledButton(
               style: FilledButton.styleFrom(
                 backgroundColor: Theme.of(ctx).colorScheme.error,
+                foregroundColor: Theme.of(ctx).colorScheme.onError,
               ),
               onPressed: () => Navigator.of(ctx).pop(scope),
               child: const Text('Delete'),
@@ -833,67 +922,84 @@ Future<void> _showMonthStatistics(BuildContext context, WidgetRef ref) async {
                 value: '${stats.allActivePublishers}',
               ),
               const SizedBox(height: 12),
-              Wrap(
-                spacing: 12,
-                runSpacing: 12,
-                children: [
-                  _MetricsCard(
-                    icon: Icons.person,
-                    title: 'Publishers',
-                    metrics: stats.publishers,
-                    showHours: false,
-                    onTap: () => _showMetricDetails(
-                      ctx,
+              LayoutBuilder(
+                builder: (context, constraints) => Wrap(
+                  spacing: 12,
+                  runSpacing: 12,
+                  children: [
+                    _MetricsCard(
+                      width: constraints.maxWidth < 440
+                          ? constraints.maxWidth
+                          : (constraints.maxWidth - 12) / 2,
+                      icon: Icons.person,
                       title: 'Publishers',
                       metrics: stats.publishers,
-                      namesById: namesById,
+                      showHours: false,
+                      onTap: () => _showMetricDetails(
+                        ctx,
+                        title: 'Publishers',
+                        metrics: stats.publishers,
+                        namesById: namesById,
+                      ),
                     ),
-                  ),
-                  _MetricsCard(
-                    icon: Icons.person_pin,
-                    title: 'Auxiliary Pioneers',
-                    metrics: stats.auxiliaryPioneers,
-                    onTap: () => _showMetricDetails(
-                      ctx,
+                    _MetricsCard(
+                      width: constraints.maxWidth < 440
+                          ? constraints.maxWidth
+                          : (constraints.maxWidth - 12) / 2,
+                      icon: Icons.person_pin,
                       title: 'Auxiliary Pioneers',
                       metrics: stats.auxiliaryPioneers,
-                      namesById: namesById,
+                      onTap: () => _showMetricDetails(
+                        ctx,
+                        title: 'Auxiliary Pioneers',
+                        metrics: stats.auxiliaryPioneers,
+                        namesById: namesById,
+                      ),
                     ),
-                  ),
-                  _MetricsCard(
-                    icon: Icons.star,
-                    title: 'Regular Pioneers',
-                    metrics: stats.regularPioneers,
-                    onTap: () => _showMetricDetails(
-                      ctx,
+                    _MetricsCard(
+                      width: constraints.maxWidth < 440
+                          ? constraints.maxWidth
+                          : (constraints.maxWidth - 12) / 2,
+                      icon: Icons.star,
                       title: 'Regular Pioneers',
                       metrics: stats.regularPioneers,
-                      namesById: namesById,
+                      onTap: () => _showMetricDetails(
+                        ctx,
+                        title: 'Regular Pioneers',
+                        metrics: stats.regularPioneers,
+                        namesById: namesById,
+                      ),
                     ),
-                  ),
-                  _MetricsCard(
-                    icon: Icons.workspace_premium,
-                    title: 'Special Pioneers',
-                    metrics: stats.specialPioneers,
-                    onTap: () => _showMetricDetails(
-                      ctx,
+                    _MetricsCard(
+                      width: constraints.maxWidth < 440
+                          ? constraints.maxWidth
+                          : (constraints.maxWidth - 12) / 2,
+                      icon: Icons.workspace_premium,
                       title: 'Special Pioneers',
                       metrics: stats.specialPioneers,
-                      namesById: namesById,
+                      onTap: () => _showMetricDetails(
+                        ctx,
+                        title: 'Special Pioneers',
+                        metrics: stats.specialPioneers,
+                        namesById: namesById,
+                      ),
                     ),
-                  ),
-                  _MetricsCard(
-                    icon: Icons.travel_explore,
-                    title: 'Field Missionaries',
-                    metrics: stats.fieldMissionaries,
-                    onTap: () => _showMetricDetails(
-                      ctx,
+                    _MetricsCard(
+                      width: constraints.maxWidth < 440
+                          ? constraints.maxWidth
+                          : (constraints.maxWidth - 12) / 2,
+                      icon: Icons.travel_explore,
                       title: 'Field Missionaries',
                       metrics: stats.fieldMissionaries,
-                      namesById: namesById,
+                      onTap: () => _showMetricDetails(
+                        ctx,
+                        title: 'Field Missionaries',
+                        metrics: stats.fieldMissionaries,
+                        namesById: namesById,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ],
           ),
@@ -981,7 +1087,11 @@ class _ReportDataTable extends ConsumerStatefulWidget {
   final List<ServiceReport> reports;
   final String searchQuery;
 
-  const _ReportDataTable({required this.reports, required this.searchQuery});
+  const _ReportDataTable({
+    super.key,
+    required this.reports,
+    required this.searchQuery,
+  });
 
   @override
   ConsumerState<_ReportDataTable> createState() => _ReportDataTableState();
@@ -995,30 +1105,46 @@ class _ReportDataTableState extends ConsumerState<_ReportDataTable> {
   int? _sortColumnIndex;
   bool _sortAscending = true;
 
-  @override
-  void initState() {
-    super.initState();
-    _loadPersonNames();
+  final Map<(int, String), FocusNode> _cellFocus = {};
+  List<ServiceReport> _visibleReports = [];
+
+  FocusNode _focusFor(int id, String column) =>
+      _cellFocus.putIfAbsent((id, column), () => FocusNode());
+
+  void _nextRow(int id, String column) {
+    final index = _visibleReports.indexWhere((report) => report.id == id);
+    if (index < 0 || index + 1 >= _visibleReports.length) return;
+    final node = _focusFor(_visibleReports[index + 1].id, column);
+    node.requestFocus();
+    if (node.context != null) {
+      Scrollable.ensureVisible(node.context!, alignment: 0.5);
+    }
   }
 
-  Future<void> _loadPersonNames() async {
-    final db = ref.read(databaseProvider);
-    final persons = await db.getAllPersons(
-      congregationId: ref.read(currentCongregationIdProvider),
-    );
-    if (!mounted) return;
-    final order = ref.read(nameOrderProvider);
-    setState(() {
-      for (final p in persons) {
-        _personNames[p.id] = formatPersonName(p.firstName, p.lastName, order);
-        _personIsActive[p.id] = p.isActive;
-        _personPioneerTypes[p.id] = p.pioneerType;
-      }
-    });
+  @override
+  void dispose() {
+    for (final node in _cellFocus.values) {
+      node.dispose();
+    }
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final people = ref.watch(personsProvider).asData?.value ?? const <Person>[];
+    final order = ref.watch(nameOrderProvider);
+    _personNames.clear();
+    _personIsActive.clear();
+    _personPioneerTypes.clear();
+    for (final person in people) {
+      _personNames[person.id] = formatPersonName(
+        person.firstName,
+        person.lastName,
+        order,
+      );
+      _personIsActive[person.id] = person.isActive;
+      _personPioneerTypes[person.id] = person.pioneerType;
+    }
     final sorted = _filterReports(widget.reports);
     if (_sortColumnIndex != null) {
       sorted.sort((a, b) {
@@ -1051,11 +1177,20 @@ class _ReportDataTableState extends ConsumerState<_ReportDataTable> {
       });
     }
 
+    _visibleReports = sorted;
     if (sorted.isEmpty) {
-      return const Center(child: Text('No matching service reports.'));
+      return EmptyState(
+        icon: Icons.search_off,
+        title: 'No matching service reports',
+        action: TextButton(
+          onPressed: () =>
+              ref.read(serviceReportSearchQueryProvider.notifier).set(''),
+          child: const Text('Clear search'),
+        ),
+      );
     }
 
-    final isWide = MediaQuery.of(context).size.width >= 600;
+    final isWide = MediaQuery.of(context).size.width >= AppBreakpoints.medium;
     return isWide ? _buildDataGrid(sorted) : _buildCardList(sorted);
   }
 
@@ -1136,6 +1271,7 @@ class _ReportDataTableState extends ConsumerState<_ReportDataTable> {
                       const SizedBox(width: 4),
                     ],
                     IconButton(
+                      tooltip: 'Delete report',
                       icon: const Icon(Icons.delete, size: 18),
                       onPressed: () => _deleteReport(report),
                       visualDensity: VisualDensity.compact,
@@ -1163,25 +1299,6 @@ class _ReportDataTableState extends ConsumerState<_ReportDataTable> {
                         const Text('Shared'),
                       ],
                     ),
-                    SizedBox(
-                      width: 80,
-                      child: _EditableNumberField(
-                        key: ValueKey('service-report-${report.id}-studies'),
-                        value: report.bibleStudies,
-                        onChanged: (v) =>
-                            _updateReport(report, bibleStudies: v),
-                        label: 'Studies',
-                      ),
-                    ),
-                    SizedBox(
-                      width: 80,
-                      child: _EditableDoubleField(
-                        key: ValueKey('service-report-${report.id}-hours'),
-                        value: report.hours,
-                        onChanged: (v) => _updateReport(report, hours: v),
-                        label: 'Hours',
-                      ),
-                    ),
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -1199,16 +1316,37 @@ class _ReportDataTableState extends ConsumerState<_ReportDataTable> {
                         const Text('Aux. Pioneer'),
                       ],
                     ),
-                    SizedBox(
-                      width: 220,
-                      child: _EditableTextField(
-                        key: ValueKey('service-report-${report.id}-note'),
-                        value: report.note,
-                        onChanged: (v) => _updateReport(report, note: v),
-                        label: 'Notes',
+                  ],
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _EditableNumberField(
+                        key: ValueKey('service-report-${report.id}-studies'),
+                        value: report.bibleStudies,
+                        onChanged: (v) =>
+                            _updateReport(report, bibleStudies: v),
+                        label: 'Studies',
+                      ),
+                    ),
+                    const SizedBox(width: AppSpacing.sm),
+                    Expanded(
+                      child: _EditableDoubleField(
+                        key: ValueKey('service-report-${report.id}-hours'),
+                        value: report.hours,
+                        onChanged: (v) => _updateReport(report, hours: v),
+                        label: 'Hours',
                       ),
                     ),
                   ],
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                _EditableTextField(
+                  key: ValueKey('service-report-${report.id}-note'),
+                  value: report.note,
+                  onChanged: (v) => _updateReport(report, note: v),
+                  label: 'Notes',
                 ),
               ],
             ),
@@ -1328,6 +1466,8 @@ class _ReportDataTableState extends ConsumerState<_ReportDataTable> {
           Center(
             child: _EditableNumberField(
               key: ValueKey('service-report-${report.id}-studies'),
+              focusNode: _focusFor(report.id, 'studies'),
+              onSubmitted: () => _nextRow(report.id, 'studies'),
               value: report.bibleStudies,
               onChanged: (v) => _updateReport(report, bibleStudies: v),
             ),
@@ -1337,6 +1477,8 @@ class _ReportDataTableState extends ConsumerState<_ReportDataTable> {
           Center(
             child: _EditableDoubleField(
               key: ValueKey('service-report-${report.id}-hours'),
+              focusNode: _focusFor(report.id, 'hours'),
+              onSubmitted: () => _nextRow(report.id, 'hours'),
               value: report.hours,
               onChanged: (v) => _updateReport(report, hours: v),
             ),
@@ -1356,6 +1498,8 @@ class _ReportDataTableState extends ConsumerState<_ReportDataTable> {
             constraints: const BoxConstraints(minWidth: 180),
             child: _EditableTextField(
               key: ValueKey('service-report-${report.id}-note'),
+              focusNode: _focusFor(report.id, 'note'),
+              onSubmitted: () => _nextRow(report.id, 'note'),
               value: report.note,
               onChanged: (v) => _updateReport(report, note: v),
             ),
@@ -1364,6 +1508,7 @@ class _ReportDataTableState extends ConsumerState<_ReportDataTable> {
         DataCell(
           Center(
             child: IconButton(
+              tooltip: 'Delete report',
               icon: const Icon(Icons.delete, size: 18),
               onPressed: () => _deleteReport(report),
             ),
@@ -1479,7 +1624,7 @@ class _PioneerTypeIndicator extends StatelessWidget {
     final description = value.displayName;
 
     return Tooltip(
-      message: '$description — edit from the person record',
+      message: '$description — edit from the publisher record',
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
         decoration: BoxDecoration(
@@ -1596,12 +1741,16 @@ class _EditableNumberField extends StatefulWidget {
   final int value;
   final ValueChanged<int> onChanged;
   final String? label;
+  final FocusNode? focusNode;
+  final VoidCallback? onSubmitted;
 
   const _EditableNumberField({
     super.key,
     required this.value,
     required this.onChanged,
     this.label,
+    this.focusNode,
+    this.onSubmitted,
   });
 
   @override
@@ -1618,7 +1767,8 @@ class _EditableNumberFieldState extends State<_EditableNumberField> {
     super.initState();
     _lastCommittedValue = widget.value;
     _controller = TextEditingController(text: '${widget.value}');
-    _focusNode = FocusNode()..addListener(_handleFocusChange);
+    _focusNode = widget.focusNode ?? FocusNode();
+    _focusNode.addListener(_handleFocusChange);
   }
 
   @override
@@ -1633,7 +1783,7 @@ class _EditableNumberFieldState extends State<_EditableNumberField> {
   @override
   void dispose() {
     _focusNode.removeListener(_handleFocusChange);
-    _focusNode.dispose();
+    if (widget.focusNode == null) _focusNode.dispose();
     _controller.dispose();
     super.dispose();
   }
@@ -1662,12 +1812,18 @@ class _EditableNumberFieldState extends State<_EditableNumberField> {
         inputFormatters: [FilteringTextInputFormatter.digitsOnly],
         decoration: InputDecoration(
           isDense: true,
-          border: widget.label != null
-              ? const OutlineInputBorder()
-              : InputBorder.none,
+          border: widget.label != null ? null : InputBorder.none,
           labelText: widget.label,
         ),
-        onSubmitted: (_) => _commitCurrentValue(),
+        onEditingComplete: () {},
+        onSubmitted: (_) {
+          _commitCurrentValue();
+          if (widget.onSubmitted != null) {
+            widget.onSubmitted!();
+          } else {
+            _focusNode.nextFocus();
+          }
+        },
         onTapOutside: (_) => _focusNode.unfocus(),
       ),
     );
@@ -1678,12 +1834,16 @@ class _EditableDoubleField extends StatefulWidget {
   final double value;
   final ValueChanged<double> onChanged;
   final String? label;
+  final FocusNode? focusNode;
+  final VoidCallback? onSubmitted;
 
   const _EditableDoubleField({
     super.key,
     required this.value,
     required this.onChanged,
     this.label,
+    this.focusNode,
+    this.onSubmitted,
   });
 
   @override
@@ -1704,7 +1864,8 @@ class _EditableDoubleFieldState extends State<_EditableDoubleField> {
           ? '${widget.value.toInt()}'
           : '${widget.value}',
     );
-    _focusNode = FocusNode()..addListener(_handleFocusChange);
+    _focusNode = widget.focusNode ?? FocusNode();
+    _focusNode.addListener(_handleFocusChange);
   }
 
   @override
@@ -1721,7 +1882,7 @@ class _EditableDoubleFieldState extends State<_EditableDoubleField> {
   @override
   void dispose() {
     _focusNode.removeListener(_handleFocusChange);
-    _focusNode.dispose();
+    if (widget.focusNode == null) _focusNode.dispose();
     _controller.dispose();
     super.dispose();
   }
@@ -1750,12 +1911,18 @@ class _EditableDoubleFieldState extends State<_EditableDoubleField> {
         inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
         decoration: InputDecoration(
           isDense: true,
-          border: widget.label != null
-              ? const OutlineInputBorder()
-              : InputBorder.none,
+          border: widget.label != null ? null : InputBorder.none,
           labelText: widget.label,
         ),
-        onSubmitted: (_) => _commitCurrentValue(),
+        onEditingComplete: () {},
+        onSubmitted: (_) {
+          _commitCurrentValue();
+          if (widget.onSubmitted != null) {
+            widget.onSubmitted!();
+          } else {
+            _focusNode.nextFocus();
+          }
+        },
         onTapOutside: (_) => _focusNode.unfocus(),
       ),
     );
@@ -1766,12 +1933,16 @@ class _EditableTextField extends StatefulWidget {
   final String value;
   final ValueChanged<String> onChanged;
   final String? label;
+  final FocusNode? focusNode;
+  final VoidCallback? onSubmitted;
 
   const _EditableTextField({
     super.key,
     required this.value,
     required this.onChanged,
     this.label,
+    this.focusNode,
+    this.onSubmitted,
   });
 
   @override
@@ -1788,7 +1959,8 @@ class _EditableTextFieldState extends State<_EditableTextField> {
     super.initState();
     _lastCommittedValue = widget.value;
     _controller = TextEditingController(text: widget.value);
-    _focusNode = FocusNode()..addListener(_handleFocusChange);
+    _focusNode = widget.focusNode ?? FocusNode();
+    _focusNode.addListener(_handleFocusChange);
   }
 
   @override
@@ -1803,7 +1975,7 @@ class _EditableTextFieldState extends State<_EditableTextField> {
   @override
   void dispose() {
     _focusNode.removeListener(_handleFocusChange);
-    _focusNode.dispose();
+    if (widget.focusNode == null) _focusNode.dispose();
     _controller.dispose();
     super.dispose();
   }
@@ -1828,12 +2000,18 @@ class _EditableTextFieldState extends State<_EditableTextField> {
       textInputAction: TextInputAction.done,
       decoration: InputDecoration(
         isDense: true,
-        border: widget.label != null
-            ? const OutlineInputBorder()
-            : InputBorder.none,
+        border: widget.label != null ? null : InputBorder.none,
         labelText: widget.label,
       ),
-      onSubmitted: (_) => _commitCurrentValue(),
+      onEditingComplete: () {},
+      onSubmitted: (_) {
+        _commitCurrentValue();
+        if (widget.onSubmitted != null) {
+          widget.onSubmitted!();
+        } else {
+          _focusNode.nextFocus();
+        }
+      },
       onTapOutside: (_) => _focusNode.unfocus(),
     );
   }
@@ -1885,6 +2063,7 @@ class _StatCard extends StatelessWidget {
 }
 
 class _MetricsCard extends StatelessWidget {
+  final double width;
   final IconData icon;
   final String title;
   final ReportMetrics metrics;
@@ -1892,6 +2071,7 @@ class _MetricsCard extends StatelessWidget {
   final VoidCallback? onTap;
 
   const _MetricsCard({
+    required this.width,
     required this.icon,
     required this.title,
     required this.metrics,
@@ -1902,7 +2082,7 @@ class _MetricsCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: 180,
+      width: width,
       child: Card(
         clipBehavior: Clip.antiAlias,
         child: InkWell(

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:congregation_manager/data/database.dart';
 import 'package:congregation_manager/providers/database_provider.dart';
@@ -7,12 +8,27 @@ import 'package:congregation_manager/providers/group_providers.dart';
 import 'package:congregation_manager/providers/settings_providers.dart';
 import 'package:congregation_manager/ui/widgets/app_popup_menu_item.dart';
 import 'package:congregation_manager/ui/widgets/search_text_field.dart';
+import 'package:congregation_manager/ui/theme/layout.dart';
+import 'package:congregation_manager/ui/widgets/empty_state.dart';
+import 'package:congregation_manager/ui/widgets/toolbar_actions.dart';
+import 'package:congregation_manager/ui/widgets/screen_shortcuts.dart';
 
-class GroupListScreen extends ConsumerWidget {
+class GroupListScreen extends ConsumerStatefulWidget {
   const GroupListScreen({super.key});
+  @override
+  ConsumerState<GroupListScreen> createState() => _GroupListScreenState();
+}
+
+class _GroupListScreenState extends ConsumerState<GroupListScreen> {
+  final _searchFocus = FocusNode();
+  @override
+  void dispose() {
+    _searchFocus.dispose();
+    super.dispose();
+  }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final filteredGroups = ref.watch(filteredGroupsProvider);
     final personsByGroup = ref.watch(personsByGroupProvider);
     final searchQuery = ref.watch(groupSearchQueryProvider);
@@ -22,92 +38,144 @@ class GroupListScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('Field Service Groups'),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.add),
+          ToolbarAction.primary(
+            icon: Icons.add,
+            label: 'Add Group',
             tooltip: 'Add Group',
             onPressed: () => context.push('/groups/new'),
           ),
         ],
       ),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: SearchTextField(
-              query: searchQuery,
-              hintText: 'Search groups...',
-              onChanged: (value) =>
-                  ref.read(groupSearchQueryProvider.notifier).set(value),
-              onClear: () =>
-                  ref.read(groupSearchQueryProvider.notifier).set(''),
-            ),
+      body: ScreenShortcuts(
+        bindings: {
+          commandKey(LogicalKeyboardKey.keyF): ScreenShortcut(
+            () => _searchFocus.requestFocus(),
+            whileEditing: true,
           ),
-          Expanded(
-            child: filteredGroups.when(
-              data: (groups) {
-                return personsByGroup.when(
-                  data: (groupedPersons) {
-                    final allPersons = [
-                      for (final persons in groupedPersons.values) ...persons,
-                    ];
-                    final personsById = {
-                      for (final person in allPersons) person.id: person,
-                    };
-                    final unassigned = groupedPersons[null] ?? const <Person>[];
-                    final normalizedQuery = searchQuery.trim().toLowerCase();
-                    final showUnassigned =
-                        normalizedQuery.isEmpty ||
-                        'unassigned persons'.contains(normalizedQuery);
+          commandKey(LogicalKeyboardKey.keyN): ScreenShortcut(
+            () => context.push('/groups/new'),
+          ),
+        },
+        child: ReadableWidth(
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(12),
+                child: SearchTextField(
+                  focusNode: _searchFocus,
+                  query: searchQuery,
+                  hintText: 'Search groups...',
+                  onChanged: (value) =>
+                      ref.read(groupSearchQueryProvider.notifier).set(value),
+                  onClear: () =>
+                      ref.read(groupSearchQueryProvider.notifier).set(''),
+                ),
+              ),
+              Expanded(
+                child: filteredGroups.when(
+                  data: (groups) {
+                    return personsByGroup.when(
+                      data: (groupedPersons) {
+                        final allPersons = [
+                          for (final persons in groupedPersons.values)
+                            ...persons,
+                        ];
+                        final personsById = {
+                          for (final person in allPersons) person.id: person,
+                        };
+                        final unassigned =
+                            groupedPersons[null] ?? const <Person>[];
+                        final normalizedQuery = searchQuery
+                            .trim()
+                            .toLowerCase();
+                        final showUnassigned =
+                            normalizedQuery.isEmpty ||
+                            'unassigned publishers'.contains(normalizedQuery);
 
-                    if (groups.isEmpty && !showUnassigned) {
-                      return const Center(
-                        child: Text('No field service groups found.'),
-                      );
-                    }
-
-                    return ListView.builder(
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                      itemCount: groups.length + (showUnassigned ? 1 : 0),
-                      itemBuilder: (context, index) {
-                        if (showUnassigned && index == 0) {
-                          return _UnassignedPersonsCard(
-                            count: unassigned.length,
-                            onView: () => _showUnassignedPersons(
-                              context,
-                              unassigned,
-                              nameOrder,
+                        if (groups.isEmpty && !showUnassigned) {
+                          return EmptyState(
+                            icon: Icons.groups_outlined,
+                            title: 'No field service groups found',
+                            action: TextButton(
+                              onPressed: () => ref
+                                  .read(groupSearchQueryProvider.notifier)
+                                  .set(''),
+                              child: const Text('Clear search'),
                             ),
                           );
                         }
-                        final groupIndex = index - (showUnassigned ? 1 : 0);
-                        final group = groups[groupIndex];
-                        final members = groupedPersons[group.id] ?? const [];
-                        return _GroupListCard(
-                          index: groupIndex,
-                          group: group,
-                          members: members,
-                          personsById: personsById,
-                          nameOrder: nameOrder,
-                          onView: () =>
-                              context.push('/groups/${group.id}/persons'),
-                          onEdit: () =>
-                              context.push('/groups/edit/${group.id}'),
-                          onDelete: () =>
-                              _deleteGroup(context, ref, group, members.length),
+
+                        return ListView.builder(
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                          itemCount: groups.length + (showUnassigned ? 1 : 0),
+                          itemBuilder: (context, index) {
+                            if (showUnassigned && index == 0) {
+                              return _UnassignedPersonsCard(
+                                count: unassigned.length,
+                                onView: () => _showUnassignedPersons(
+                                  context,
+                                  unassigned,
+                                  nameOrder,
+                                ),
+                              );
+                            }
+                            final groupIndex = index - (showUnassigned ? 1 : 0);
+                            final group = groups[groupIndex];
+                            final members =
+                                groupedPersons[group.id] ?? const [];
+                            return _GroupListCard(
+                              index: groupIndex,
+                              group: group,
+                              members: members,
+                              personsById: personsById,
+                              nameOrder: nameOrder,
+                              onView: () =>
+                                  context.push('/groups/${group.id}/persons'),
+                              onEdit: () =>
+                                  context.push('/groups/edit/${group.id}'),
+                              onDelete: () => _deleteGroup(
+                                context,
+                                ref,
+                                group,
+                                members.length,
+                              ),
+                            );
+                          },
                         );
                       },
+                      loading: () =>
+                          const Center(child: CircularProgressIndicator()),
+                      error: (e, _) => EmptyState.error(
+                        title: 'Could not load groups',
+                        error: e,
+                        action: TextButton(
+                          onPressed: () {
+                            ref.invalidate(fieldServiceGroupsProvider);
+                            ref.invalidate(personsByGroupProvider);
+                          },
+                          child: const Text('Retry'),
+                        ),
+                      ),
                     );
                   },
                   loading: () =>
                       const Center(child: CircularProgressIndicator()),
-                  error: (e, _) => Center(child: Text('Error: $e')),
-                );
-              },
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (e, _) => Center(child: Text('Error: $e')),
-            ),
+                  error: (e, _) => EmptyState.error(
+                    title: 'Could not load groups',
+                    error: e,
+                    action: TextButton(
+                      onPressed: () {
+                        ref.invalidate(fieldServiceGroupsProvider);
+                        ref.invalidate(personsByGroupProvider);
+                      },
+                      child: const Text('Retry'),
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -129,7 +197,7 @@ class GroupListScreen extends ConsumerWidget {
     await showDialog<void>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: Text('Unassigned Persons (${sorted.length})'),
+        title: Text('Unassigned Publishers (${sorted.length})'),
         content: SizedBox(
           width: 440,
           child: ConstrainedBox(
@@ -265,11 +333,11 @@ class _UnassignedPersonsCard extends StatelessWidget {
               : colors.onSurfaceVariant,
           child: const Icon(Icons.person_off_outlined),
         ),
-        title: const Text('Unassigned Persons'),
+        title: const Text('Unassigned Publishers'),
         subtitle: Text(
           count == 0
               ? 'Everyone is assigned to a field service group.'
-              : '$count ${count == 1 ? 'person is' : 'persons are'} not assigned.',
+              : '$count ${count == 1 ? 'publisher is' : 'publishers are'} not assigned.',
         ),
         trailing: const Icon(Icons.chevron_right),
         onTap: onView,
@@ -393,12 +461,22 @@ class _GroupInfoChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    return Chip(
-      avatar: Icon(icon, size: 18),
-      label: Text(label),
-      backgroundColor: colorScheme.surfaceContainerHighest,
-      side: BorderSide.none,
-      visualDensity: VisualDensity.compact,
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 18),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(label, style: Theme.of(context).textTheme.labelMedium),
+          ),
+        ],
+      ),
     );
   }
 }

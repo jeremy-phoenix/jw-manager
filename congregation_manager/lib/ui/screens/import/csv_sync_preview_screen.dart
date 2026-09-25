@@ -9,6 +9,9 @@ import 'package:congregation_manager/providers/congregation_providers.dart';
 import 'package:congregation_manager/providers/person_providers.dart';
 import 'package:congregation_manager/providers/settings_providers.dart';
 import 'package:congregation_manager/services/csv_sync_service.dart';
+import 'package:congregation_manager/ui/theme/layout.dart';
+import 'package:congregation_manager/ui/widgets/empty_state.dart';
+import 'package:congregation_manager/ui/theme/status_colors.dart';
 
 /// Full-screen dialog that shows CSV sync preview and lets user pick changes.
 class CsvSyncPreviewScreen extends ConsumerStatefulWidget {
@@ -71,7 +74,7 @@ class _CsvSyncPreviewScreenState extends ConsumerState<CsvSyncPreviewScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('CSV Sync Preview'),
+        title: const Text('CSV Preview'),
         actions: [
           if (_syncResult != null)
             FilledButton.icon(
@@ -79,10 +82,10 @@ class _CsvSyncPreviewScreenState extends ConsumerState<CsvSyncPreviewScreen> {
               label: const Text('Apply'),
               onPressed: _applyChanges,
             ),
-          const SizedBox(width: 12),
+          const SizedBox(width: AppSpacing.sm),
         ],
       ),
-      body: _buildBody(),
+      body: ReadableWidth(maxWidth: AppContentWidth.form, child: _buildBody()),
     );
   }
 
@@ -92,13 +95,18 @@ class _CsvSyncPreviewScreenState extends ConsumerState<CsvSyncPreviewScreen> {
     }
 
     if (_error != null) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Text(
-            'Error: $_error',
-            style: const TextStyle(color: Colors.red),
-          ),
+      return EmptyState.error(
+        title: 'Could not read the CSV file',
+        error: _error!,
+        action: TextButton(
+          onPressed: () {
+            setState(() {
+              _loading = true;
+              _error = null;
+            });
+            _loadSync();
+          },
+          child: const Text('Retry'),
         ),
       );
     }
@@ -106,24 +114,23 @@ class _CsvSyncPreviewScreenState extends ConsumerState<CsvSyncPreviewScreen> {
     final result = _syncResult!;
 
     return ListView(
-      padding: const EdgeInsets.all(16),
+      padding: AppSpacing.page,
       children: [
         // Summary card
         Card(
           child: Padding(
             padding: const EdgeInsets.all(16),
-            child: Row(
+            child: Wrap(
+              spacing: 12,
+              runSpacing: 8,
               children: [
                 _summaryChip(Icons.link, 'Matched', result.matched),
-                const SizedBox(width: 16),
                 _summaryChip(Icons.edit, 'Updates', result.updates.length),
-                const SizedBox(width: 16),
                 _summaryChip(
                   Icons.person_add,
                   'Unmatched CSV',
                   result.unmatchedCsv.length,
                 ),
-                const SizedBox(width: 16),
                 _summaryChip(
                   Icons.person_off,
                   'Unmatched DB',
@@ -183,32 +190,38 @@ class _CsvSyncPreviewScreenState extends ConsumerState<CsvSyncPreviewScreen> {
                   children: [
                     Text(
                       'Change: ${update.changeType}',
-                      style: TextStyle(color: Colors.blue[700]),
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
                     ),
                     if (update.addressChanged) ...[
                       Text(
                         'Old Address: ${update.oldAddress ?? "—"}',
-                        style: const TextStyle(
+                        style: TextStyle(
                           decoration: TextDecoration.lineThrough,
-                          color: Colors.red,
+                          color: Theme.of(context).colorScheme.error,
                         ),
                       ),
                       Text(
                         'New Address: ${update.newAddress ?? "—"}',
-                        style: const TextStyle(color: Colors.green),
+                        style: TextStyle(
+                          color: StatusColors.of(context).success,
+                        ),
                       ),
                     ],
                     if (update.phonesChanged) ...[
                       Text(
                         'Old Phones: ${update.oldPhones.isEmpty ? "—" : update.oldPhones.join(", ")}',
-                        style: const TextStyle(
+                        style: TextStyle(
                           decoration: TextDecoration.lineThrough,
-                          color: Colors.red,
+                          color: Theme.of(context).colorScheme.error,
                         ),
                       ),
                       Text(
                         'New Phones: ${update.newPhones.isEmpty ? "—" : update.newPhones.join(", ")}',
-                        style: const TextStyle(color: Colors.green),
+                        style: TextStyle(
+                          color: StatusColors.of(context).success,
+                        ),
                       ),
                     ],
                   ],
@@ -294,14 +307,17 @@ class _CsvSyncPreviewScreenState extends ConsumerState<CsvSyncPreviewScreen> {
         if (result.unmatchedDb.isNotEmpty) ...[
           _sectionHeader(
             'Unmatched Database Records',
-            '${result.unmatchedDb.length} person(s) not in CSV',
+            '${result.unmatchedDb.length} publisher(s) not in CSV',
           ),
           const SizedBox(height: 8),
           Card(
             child: Column(
               children: result.unmatchedDb.map((p) {
                 return ListTile(
-                  leading: const Icon(Icons.person_off, color: Colors.orange),
+                  leading: Icon(
+                    Icons.person_off,
+                    color: StatusColors.of(context).warning,
+                  ),
                   title: Text(
                     formatPersonName(
                       p.firstName,
@@ -324,7 +340,8 @@ class _CsvSyncPreviewScreenState extends ConsumerState<CsvSyncPreviewScreen> {
   }
 
   Widget _sectionHeader(String title, String subtitle) {
-    return Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           title,
@@ -332,12 +349,12 @@ class _CsvSyncPreviewScreenState extends ConsumerState<CsvSyncPreviewScreen> {
             context,
           ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
         ),
-        const SizedBox(width: 8),
+        const SizedBox(height: 4),
         Text(
           subtitle,
-          style: Theme.of(
-            context,
-          ).textTheme.bodySmall?.copyWith(color: Colors.grey),
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
         ),
       ],
     );

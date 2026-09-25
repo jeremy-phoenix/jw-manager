@@ -5,6 +5,8 @@ import 'package:congregation_manager/data/enums.dart';
 import 'package:congregation_manager/providers/congregation_providers.dart';
 import 'package:congregation_manager/providers/person_providers.dart';
 import 'package:congregation_manager/providers/group_providers.dart';
+import 'package:congregation_manager/ui/theme/layout.dart';
+import 'package:congregation_manager/ui/widgets/toolbar_actions.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -19,8 +21,8 @@ class HomeScreen extends ConsumerWidget {
     final stats = [
       _DashboardStat(
         icon: Icons.people_alt_outlined,
-        label: 'Congregation Persons',
-        description: 'All current person records',
+        label: 'Publishers',
+        description: 'All current publisher records',
         value: persons.when(
           data: (list) => list.length.toString(),
           loading: () => '...',
@@ -31,7 +33,7 @@ class HomeScreen extends ConsumerWidget {
       ),
       _DashboardStat(
         icon: Icons.check_circle_outline,
-        label: 'Active Persons',
+        label: 'Active Publishers',
         description: 'Currently active',
         value: persons.when(
           data: (list) => list.where((p) => p.isActive).length.toString(),
@@ -43,7 +45,7 @@ class HomeScreen extends ConsumerWidget {
       ),
       _DashboardStat(
         icon: Icons.person_off_outlined,
-        label: 'Inactive Persons',
+        label: 'Inactive Publishers',
         description: 'Included in current records',
         value: persons.when(
           data: (list) => list.where((p) => !p.isActive).length.toString(),
@@ -93,7 +95,7 @@ class HomeScreen extends ConsumerWidget {
       _DashboardStat(
         icon: Icons.person_add_disabled_outlined,
         label: 'Unassigned',
-        description: 'Active persons without a group',
+        description: 'Active publishers without a group',
         value: persons.when(
           data: (list) => list
               .where((p) => p.isActive && p.fieldServiceGroupId == null)
@@ -127,34 +129,27 @@ class HomeScreen extends ConsumerWidget {
       ),
       body: LayoutBuilder(
         builder: (context, constraints) {
-          final isCompact = constraints.maxWidth < 600;
+          final inset = constraints.maxWidth < AppBreakpoints.medium
+              ? AppSpacing.lg
+              : AppSpacing.xl;
 
           return SingleChildScrollView(
-            padding: EdgeInsets.all(isCompact ? 16 : 24),
+            padding: EdgeInsets.fromLTRB(inset, AppSpacing.sm, inset, 32),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Dashboard', style: theme.textTheme.headlineMedium),
-                const SizedBox(height: 4),
-                Text(
-                  'A current overview of the congregation.',
-                  style: theme.textTheme.bodyLarge?.copyWith(
-                    color: colors.onSurfaceVariant,
-                  ),
-                ),
-                const SizedBox(height: 16),
                 _DashboardGrid(stats: stats),
-                const SizedBox(height: 28),
+                const SizedBox(height: AppSpacing.xl),
                 Text('Quick Actions', style: theme.textTheme.titleLarge),
-                const SizedBox(height: 12),
+                const SizedBox(height: AppSpacing.md),
                 _QuickActions(
                   onAddPerson: () => context.push('/persons/new'),
                   onServiceReports: () => context.go('/reports'),
                   onManageGroups: () => context.go('/groups'),
                 ),
-                const SizedBox(height: 28),
-                Text('Person Records', style: theme.textTheme.titleLarge),
-                const SizedBox(height: 12),
+                const SizedBox(height: AppSpacing.xl),
+                Text('Publisher Records', style: theme.textTheme.titleLarge),
+                const SizedBox(height: AppSpacing.md),
                 _BaptismDateOverviewCard(
                   missingCount: missingBaptismDates,
                   onTap: () {
@@ -203,28 +198,18 @@ class _DashboardGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final width = constraints.maxWidth;
-        final columns = width < 360
-            ? 1
-            : width < 900
-            ? 2
-            : 3;
-
-        return GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: stats.length,
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: columns,
-            mainAxisExtent: 142,
-            mainAxisSpacing: 12,
-            crossAxisSpacing: 12,
-          ),
-          itemBuilder: (context, index) => _StatCard(stat: stats[index]),
-        );
-      },
+    // Tiles fill the row and wrap as the window narrows, so no breakpoints.
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: stats.length,
+      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+        maxCrossAxisExtent: 360,
+        mainAxisExtent: 142,
+        mainAxisSpacing: AppSpacing.md,
+        crossAxisSpacing: AppSpacing.md,
+      ),
+      itemBuilder: (context, index) => _StatCard(stat: stats[index]),
     );
   }
 }
@@ -254,7 +239,7 @@ class _StatCard extends StatelessWidget {
                   DecoratedBox(
                     decoration: BoxDecoration(
                       color: stat.color.withAlpha(28),
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(12),
                     ),
                     child: Padding(
                       padding: const EdgeInsets.all(8),
@@ -318,13 +303,13 @@ class _QuickActions extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Wrap(
-      spacing: 10,
-      runSpacing: 10,
+      spacing: AppSpacing.sm,
+      runSpacing: AppSpacing.sm,
       children: [
         FilledButton.icon(
           onPressed: onAddPerson,
           icon: const Icon(Icons.person_add_outlined),
-          label: const Text('Add Person'),
+          label: const Text('Add Publisher'),
         ),
         OutlinedButton.icon(
           onPressed: onServiceReports,
@@ -355,9 +340,9 @@ class _BaptismDateOverviewCard extends StatelessWidget {
     final colors = Theme.of(context).colorScheme;
     final description = switch (missingCount) {
       null => 'Loading baptism date information…',
-      0 => 'Every active person has a baptism date recorded.',
-      1 => '1 active person has no baptism date recorded.',
-      final count => '$count active persons have no baptism date recorded.',
+      0 => 'Every active publisher has a baptism date recorded.',
+      1 => '1 active publisher has no baptism date recorded.',
+      final count => '$count active publishers have no baptism date recorded.',
     };
 
     return Card(
@@ -386,8 +371,9 @@ class _CongregationSwitcher extends ConsumerWidget {
 
     return congregationsAsync.when(
       data: (congregations) {
-        return PopupMenuButton<Object>(
-          icon: const Icon(Icons.swap_horiz),
+        return ToolbarMenu<Object>(
+          icon: Icons.swap_horiz,
+          label: 'Switch congregation',
           tooltip: 'Switch Congregation',
           itemBuilder: (context) => [
             ...congregations.map(
