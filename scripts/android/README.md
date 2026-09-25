@@ -10,8 +10,8 @@ Run from the repository root:
 
 The script creates:
 
-- `congregation_manager/android/app/upload-keystore.p12`
-- `congregation_manager/android/key.properties`
+- `android/app/upload-keystore.p12`
+- `android/key.properties`
 
 Both files are ignored by the existing Android `.gitignore` and should stay private.
 

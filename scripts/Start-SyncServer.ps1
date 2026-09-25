@@ -5,7 +5,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
-$projectPath = Join-Path $repoRoot "CongregationManager.Server"
+$projectPath = Join-Path $repoRoot "backend/CongregationManager.Server"
 $secretKey = "SyncServer:Registration:Secret"
 
 if (-not (Get-Command dotnet -ErrorAction SilentlyContinue)) {

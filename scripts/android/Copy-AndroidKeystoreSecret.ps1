@@ -10,7 +10,7 @@ $ErrorActionPreference = "Stop"
 
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 if ([string]::IsNullOrWhiteSpace($KeystorePath)) {
-    $KeystorePath = Join-Path $repoRoot "congregation_manager\android\app\upload-keystore.p12"
+    $KeystorePath = Join-Path $repoRoot "android\app\upload-keystore.p12"
 }
 
 if (-not (Test-Path $KeystorePath)) {

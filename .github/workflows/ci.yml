@@ -17,15 +17,12 @@ concurrency:
 
 env:
   DOTNET_VERSION: 10.0.x
-  DOTNET_SOLUTION: CongregationManager.slnx
+  DOTNET_SOLUTION: backend/CongregationManager.slnx
 
 jobs:
   flutter:
     name: Flutter analyze and test
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: congregation_manager
     steps:
       - name: Check out repository
         uses: actions/checkout@v4

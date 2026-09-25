@@ -16,16 +16,13 @@ concurrency:
 
 env:
   DOTNET_VERSION: 10.0.x
-  DOTNET_SOLUTION: CongregationManager.slnx
-  API_PROJECT: CongregationManager.Server/CongregationManager.Server.csproj
+  DOTNET_SOLUTION: backend/CongregationManager.slnx
+  API_PROJECT: backend/CongregationManager.Server/CongregationManager.Server.csproj
 
 jobs:
   flutter-verify:
     name: Flutter analyze and test
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: congregation_manager
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -91,9 +88,6 @@ jobs:
           #   runner: macos-13
           #   asset_name: congregation-manager-macos-x64.zip
           #   artifact_name: congregation-manager-macos-x64
-    defaults:
-      run:
-        working-directory: congregation_manager
     steps:
       - name: Check out repository
         uses: actions/checkout@v4

@@ -90,7 +90,7 @@ user secrets if the setting is missing or contains the literal placeholder
 starts the server with the Development launch profile. It works from any
 working directory and does not require OpenSSL. Press Ctrl+C to stop.
 To view the secret for vault creation or the end-to-end test, run
-`dotnet user-secrets list --project CongregationManager.Server` from the
+`dotnet user-secrets list --project backend/CongregationManager.Server` from the
 repository root.
 
 Alternatively, from Bash with OpenSSL installed, run these commands from
@@ -99,15 +99,15 @@ Do not run these in Windows CMD: it saves `$(openssl rand -base64 33)`
 literally instead of generating a secret. Use the Windows launcher above.
 
 ```sh
-dotnet user-secrets set "SyncServer:Registration:Secret" "$(openssl rand -base64 33)" --project CongregationManager.Server
-dotnet run --project CongregationManager.Server
+dotnet user-secrets set "SyncServer:Registration:Secret" "$(openssl rand -base64 33)" --project backend/CongregationManager.Server
+dotnet run --project backend/CongregationManager.Server
 ```
 
 The Development settings listen on `http://127.0.0.1:5080` and allow plain
 HTTP. The app accepts `http://` only for `localhost`, `127.0.0.1` and the
 Android emulator's `10.0.2.2`.
 
-Tests: `dotnet test CongregationManager.slnx`. To run the app's end-to-end
+Tests: `dotnet test backend/CongregationManager.slnx`. To run the app's end-to-end
 test against a running server:
 
 ```sh
@@ -117,6 +117,8 @@ SYNC_TEST_SERVER_URL=http://127.0.0.1:5080 SYNC_TEST_REGISTRATION_SECRET=<secret
 
 ## Deploying on a Linux VPS
 
+Run the source-checkout commands below from the repository root.
+
 1. **Runtime.** Install the ASP.NET Core 10 runtime
    (<https://learn.microsoft.com/dotnet/core/install/linux>), or publish
    self-contained with `--self-contained true`.
@@ -124,7 +126,7 @@ SYNC_TEST_SERVER_URL=http://127.0.0.1:5080 SYNC_TEST_REGISTRATION_SECRET=<secret
    release artifact):
 
    ```sh
-   dotnet publish CongregationManager.Server -c Release -r linux-x64 --self-contained false -o publish
+   dotnet publish backend/CongregationManager.Server -c Release -r linux-x64 --self-contained false -o publish
    ```
 
 3. **User and directories:**
@@ -137,20 +139,20 @@ SYNC_TEST_SERVER_URL=http://127.0.0.1:5080 SYNC_TEST_REGISTRATION_SECRET=<secret
    sudo cp -r publish/* /opt/congregation-sync/
    ```
 
-4. **Configuration.** Copy `deploy/congregation-sync.env.example` to
+4. **Configuration.** Copy `backend/CongregationManager.Server/deploy/congregation-sync.env.example` to
    `/etc/congregation-sync/congregation-sync.env` (owner root, mode 600) and
    set a registration secret: `openssl rand -base64 33`.
 5. **Service:**
 
    ```sh
-   sudo cp deploy/congregation-sync.service /etc/systemd/system/
+   sudo cp backend/CongregationManager.Server/deploy/congregation-sync.service /etc/systemd/system/
    sudo systemctl daemon-reload
    sudo systemctl enable --now congregation-sync
    journalctl -u congregation-sync -f
    ```
 
-6. **TLS reverse proxy.** Use `deploy/Caddyfile.example` (Caddy fetches
-   certificates itself) or `deploy/nginx.conf.example` with certbot. Only the
+6. **TLS reverse proxy.** Use `backend/CongregationManager.Server/deploy/Caddyfile.example` (Caddy fetches
+   certificates itself) or `backend/CongregationManager.Server/deploy/nginx.conf.example` with certbot. Only the
    proxy is reachable from outside; the server listens on 127.0.0.1.
 7. **Check:** `curl https://sync.example.org/health` returns
    `{"status":"ok"}`, and `curl -i https://sync.example.org/api/v1/vault`
@@ -175,7 +177,7 @@ SYNC_TEST_SERVER_URL=http://127.0.0.1:5080 SYNC_TEST_REGISTRATION_SECRET=<secret
 - Port 5080 is never exposed; the app binds to loopback.
 - PostgreSQL, if used: local socket or localhost only, with a dedicated role
   limited to its own database.
-- Backups with `deploy/backup.sh` (age-encrypted, copied off the server).
+- Backups with `backend/CongregationManager.Server/deploy/backup.sh` (age-encrypted, copied off the server).
   Test a restore once.
 - An uptime monitor on `/health`: see [Uptime Kuma setup](deploy/uptime-kuma.md).
 - Registration secret blank except while creating a vault.
